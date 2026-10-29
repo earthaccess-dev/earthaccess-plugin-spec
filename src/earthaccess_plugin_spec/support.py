@@ -118,7 +118,7 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
         Capability.SUBSET_VARIABLE,
         "select a subset of variables; an unknown name raises",
         options=("variables",),
-        outputs=frozenset({"assets", "xarray", "dataframe"}),
+        outputs=frozenset({"assets", "xarray", "dataframe", "opendap"}),
         example='plugin.request(results, variables=["var1", "var2"])',
     ),
     Capability.SUBSET_DIMENSION: CapabilitySpec(

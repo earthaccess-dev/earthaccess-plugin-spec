@@ -188,7 +188,7 @@ advertised operation must be requestable through its canonical `Options` field:
 | `lazy_read` | read slices without downloading the granule | — (a read property) | any | `ea.open(job)` |
 | `subset_bbox` | restrict to a spatial extent | `bbox` or `wkt` | assets, xarray, dataframe | `request(..., bbox=(w, s, e, n))` |
 | `subset_temporal` | restrict to a time interval | `temporal` | assets, xarray, dataframe | `request(..., temporal={"start": ..., "stop": ...})` |
-| `subset_variable` | select variables; unknown names raise | `variables` | assets, xarray, dataframe | `request(..., variables=["var1"])` |
+| `subset_variable` | select variables; unknown names raise | `variables` | assets, xarray, dataframe, opendap | `request(..., variables=["var1"])` |
 | `subset_dimension` | select along named dimensions | `dimensions` | assets, xarray | `request(..., dimensions=[...])` |
 | `subset_shape` | restrict to a shapefile/region | `shapefile` | assets, xarray, dataframe | `request(..., shapefile="aoi.geojson")` |
 | `reproject` | reproject to a target CRS | `crs` | assets, xarray | `request(..., crs="EPSG:3995")` |
