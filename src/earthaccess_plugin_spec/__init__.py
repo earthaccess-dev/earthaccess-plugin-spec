@@ -10,7 +10,13 @@ Run the conformance suite from ``earthaccess_plugin_spec.testing`` in CI.
 
 from __future__ import annotations
 
-from .base import PluginBase, accepting_plugins, validate_inputs
+from .base import (
+    AUTHS,
+    OUTPUTS,
+    PluginBase,
+    accepting_plugins,
+    validate_inputs,
+)
 from .context import AuthHandle, LazyEDLAuthHandle, PluginContext, default_context
 from .errors import (
     EarthaccessPluginError,
@@ -25,13 +31,17 @@ from .errors import (
     UnsupportedCollectionError,
     UnsupportedOutputError,
 )
-from .job import Asset, Job, JobStatus
+from .granules import NEEDS, collection_label, peek
+from .job import TERMINAL_STATUSES, Asset, Job, JobStatus
 from .results import GranuleResultSet, ResultSet, as_result_set, list_services
-from .support import Capabilities, Capability, ServiceRow, ServiceTable, Support
+from .support import Capabilities, Capability, ServiceRow, ServiceTable
 from .version import CONTRACT_VERSION
 
 __all__ = [
+    "AUTHS",
     "CONTRACT_VERSION",
+    "NEEDS",
+    "OUTPUTS",
     "Asset",
     "AuthHandle",
     "Capabilities",
@@ -54,13 +64,14 @@ __all__ = [
     "ResultSet",
     "ServiceRow",
     "ServiceTable",
-    "Support",
+    "TERMINAL_STATUSES",
     "UnsupportedCollectionError",
     "UnsupportedOutputError",
     "accepting_plugins",
     "as_result_set",
-    "as_target",
+    "collection_label",
     "default_context",
     "list_services",
+    "peek",
     "validate_inputs",
 ]

@@ -11,15 +11,16 @@ def test_conformance():
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from typing import Any
 
-from .base import PluginBase
+from .base import AUTHS, OUTPUTS, PluginBase
 from .context import PluginContext
-from .job import Job, JobStatus
-from .results import ResultSet
+from .granules import NEEDS
+from .job import TERMINAL_STATUSES, Job, JobStatus
+from .results import GranuleResultSet, ResultSet
 from .support import Capabilities
 
 __all__ = [
@@ -30,15 +31,7 @@ __all__ = [
     "sample_result_set",
 ]
 
-_OUTPUTS = {"assets", "xarray", "dataframe"}
-_AUTHS = {"edl", "own", "none"}
-_SETTLED = {
-    JobStatus.PAUSED,
-    JobStatus.SUCCEEDED,
-    JobStatus.PARTIAL,
-    JobStatus.FAILED,
-    JobStatus.CANCELED,
-}
+
 
 
 class FakeAuth:
@@ -64,8 +57,13 @@ def fake_context(label: str = "earthaccess-conformance") -> PluginContext:
     return PluginContext(auth=FakeAuth(), label=label)
 
 
-class _StubResultSet:
-    """A ResultSet whose fields can be emptied one at a time."""
+class _StubResultSet(GranuleResultSet):
+    """A resultset built from synthetic granules whose fields can be emptied.
+
+    This is a thin builder over :class:`GranuleResultSet`; the only reason it
+    exists is that the conformance checks need to suppress one field at a time
+    (for example ``ids=()`` to simulate a record without ``meta.concept-id``).
+    """
 
     def __init__(
         self,
@@ -78,32 +76,28 @@ class _StubResultSet:
         umms: Sequence[dict] | None = None,
         services: Sequence[dict] | None = None,
     ) -> None:
-        self.collection_id = collection_id
-        self.short_name = short_name
-        self.version = version
-        self.ids = list(ids)
-        self.native_ids = list(native_ids)
-        self._umms = (
-            list(umms) if umms is not None else [{"GranuleUR": "G1234.EXAMPLE"}]
-        )
-        self._services = list(services) if services else []
-
-    def __iter__(self) -> Iterator[dict]:
-        for index, umm in enumerate(self._umms):
-            concept_id = self.ids[index] if index < len(self.ids) else ""
-            yield {
+        records = [
+            {
                 "meta": {
-                    "concept-id": concept_id,
-                    "collection-concept-id": self.collection_id,
+                    "concept-id": ids[index] if index < len(ids) else "",
+                    "collection-concept-id": collection_id,
                 },
                 "umm": umm,
             }
-
-    def umm(self) -> Sequence[dict]:
-        return self._umms
-
-    def services(self) -> Sequence[dict]:
-        return list(self._services)
+            for index, umm in enumerate(
+                umms if umms is not None else [{"GranuleUR": "G1234.EXAMPLE"}]
+            )
+        ]
+        super().__init__(
+            records,
+            services=services,
+            short_name=short_name,
+            version=version,
+        )
+        # Keep the declared values even when the synthetic UMM is deliberately
+        # incomplete, so a check can say "this field is missing".
+        self.ids = list(ids)
+        self.native_ids = list(native_ids)
 
 
 def sample_result_set(**kwargs: Any) -> ResultSet:
@@ -133,7 +127,7 @@ class Fixtures:
 
 def _missing_needs(plugin: type) -> set[str]:
     needs = set(getattr(plugin, "needs", frozenset()))
-    return needs - {"concept_id", "native_id", "umm"}
+    return needs - NEEDS
 
 
 def run_conformance(
@@ -158,8 +152,8 @@ def run_conformance(
         assert isinstance(getattr(plugin_cls, "contract_version", None), int), (
             "contract_version must be an int"
         )
-        assert plugin_cls.output in _OUTPUTS, f"output must be one of {_OUTPUTS}"
-        assert plugin_cls.auth in _AUTHS, f"auth must be one of {_AUTHS}"
+        assert plugin_cls.output in OUTPUTS, f"output must be one of {OUTPUTS}"
+        assert plugin_cls.auth in AUTHS, f"auth must be one of {AUTHS}"
         assert isinstance(getattr(plugin_cls, "Options", None), type), (
             "Options is required"
         )
@@ -179,14 +173,10 @@ def run_conformance(
     def support_contract() -> None:
         if fixtures.result_set is None:
             return
-        support = plugin.supports(fixtures.result_set)
-        assert isinstance(support, Capabilities), "supports() must return Capabilities"
-        # capabilities() is the alias of supports().
-        alias = plugin.capabilities(fixtures.result_set)
-        assert isinstance(alias, Capabilities), (
+        support = plugin.capabilities(fixtures.result_set)
+        assert isinstance(support, Capabilities), (
             "capabilities() must return Capabilities"
         )
-        assert alias.ok == support.ok, "capabilities() and supports() must agree"
 
     check("support_contract", support_contract)
 
@@ -300,7 +290,7 @@ def run_conformance(
     def settles() -> None:
         assert job is not None
         status = job.wait(timeout=120)
-        assert status in _SETTLED, f"wait() returned non-terminal {status}"
+        assert status in TERMINAL_STATUSES, f"wait() returned non-terminal {status}"
         assert job.status() is status, "a settled job must stay settled"
 
     check("settles", settles)
@@ -355,7 +345,7 @@ def run_conformance(
 
         if fixtures.unsupported_result_set is None:
             return
-        support = plugin.supports(fixtures.unsupported_result_set)
+        support = plugin.capabilities(fixtures.unsupported_result_set)
         assert support.ok is False, (
             f"unsupported_result_set must report ok=False, got {support.ok!r}"
         )

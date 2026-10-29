@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from .job import JobStatus
+from typing import Any
 
 __all__ = [
     "EarthaccessPluginError",
@@ -84,16 +81,10 @@ class UnsupportedCollectionError(EarthaccessPluginError):
 
 
 class JobError(EarthaccessPluginError):
-    """Base class for job state errors. Carries the job id and status."""
+    """Base class for job state errors. Carries the job id and a detail payload."""
 
-    def __init__(
-        self,
-        job_id: str,
-        status: JobStatus | None = None,
-        detail: Any = None,
-    ) -> None:
+    def __init__(self, job_id: str, detail: Any = None) -> None:
         self.job_id = job_id
-        self.status = status
         self.detail = detail
         super().__init__(self._message())
 
@@ -106,7 +97,7 @@ class JobFailedError(JobError):
 
     def __init__(self, job_id: str, info: Mapping[str, Any] | None = None) -> None:
         self.info = dict(info or {})
-        super().__init__(job_id, status=None, detail=self.info)
+        super().__init__(job_id, detail=self.info)
 
     def _message(self) -> str:
         error = self.info.get("error")
@@ -134,6 +125,6 @@ class JobPausedError(JobError):
 
     def _message(self) -> str:
         return (
-            f"job {self.job_id} is paused; call resume() to continue or "
-            "skip_preview() to accept the preview"
+            f"job {self.job_id} is paused; call resume() to continue "
+            "(or the plugin's preview-skip method, if it has one)"
         )

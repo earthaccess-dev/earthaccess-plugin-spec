@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import warnings
-from collections.abc import Mapping
-from dataclasses import replace
+from collections.abc import Iterator
+from dataclasses import dataclass, replace
 from typing import Any, ClassVar, Literal
 
+from . import granules
 from .context import PluginContext
 from .errors import (
     MissingResultsError,
@@ -15,43 +16,45 @@ from .errors import (
     UnsupportedCollectionError,
 )
 from .job import Job
-from .results import as_result_set
+from .results import as_result_set, list_services
 from .support import Capabilities
 from .version import CONTRACT_VERSION
 
-__all__ = ["PluginBase", "accepting_plugins", "validate_inputs", "as_target"]
+__all__ = [
+    "AUTHS",
+    "OUTPUTS",
+    "PluginBase",
+    "accepting_plugins",
+    "validate_inputs",
+]
 
-# Where each ``needs`` value lives in a raw granule record.
-_RECORD_FIELDS = {
-    "concept_id": ("meta", "concept-id"),
-    "native_id": ("umm", "GranuleUR"),
-    "umm": ("umm",),
-}
+OUTPUTS = frozenset({"assets", "xarray", "dataframe", "opendap"})
+"""The conventional ``output`` kinds.
+
+``assets`` is the only kind earthaccess itself knows how to open or download.
+The rest are handed back to the caller as-is; ``opendap`` means "native backend
+objects" (for example PyDAP datasets) rather than OPeNDAP URLs.
+"""
+
+AUTHS = frozenset({"edl", "own", "none"})
+"""The allowed ``auth`` modes: login through earthaccess, self-managed, none."""
+
 _RESERVED_OPTIONS = frozenset({"check"})
 _warned_unknown_support: set[tuple[str, str]] = set()
 
 
+@dataclass(frozen=True)
 class _ShortNameTarget:
     """A results-like target for ``capabilities("ATL06")`` calls."""
 
-    def __init__(self, short_name: str) -> None:
-        self.short_name = short_name
-        self.version = ""
-        self.collection_id = ""
-        self.ids: list[str] = []
-        self.native_ids: list[str] = []
+    short_name: str
+    collection_id: str = ""
 
-    def __iter__(self) -> Any:
+    def __iter__(self) -> Iterator[Any]:
         return iter(())
 
-    def umm(self) -> list[dict[str, Any]]:
-        return []
 
-    def services(self) -> list[dict[str, Any]]:
-        return []
-
-
-def as_target(target: Any) -> Any:
+def _as_target(target: Any) -> Any:
     """Normalise a capability-check target: a short name, results, or ``None``."""
 
     if target is None:
@@ -59,36 +62,6 @@ def as_target(target: Any) -> Any:
     if isinstance(target, str):
         return _ShortNameTarget(target)
     return as_result_set(target)
-
-
-def _first_record(results: Any) -> Any:
-    """Peek the first granule record without materializing the resultset."""
-
-    try:
-        return next(iter(results), None)
-    except TypeError:
-        return None
-
-
-def _record_has(record: Any, need: str) -> bool:
-    value = record
-    for key in _RECORD_FIELDS[need]:
-        if not isinstance(value, Mapping):
-            return False
-        value = value.get(key)
-    return bool(value)
-
-
-def _collection_label(results: Any) -> str:
-    """A human label for the collection, without materializing the resultset."""
-
-    short = getattr(results, "short_name", "") or ""
-    if short:
-        return short
-    record = _first_record(results)
-    if isinstance(record, Mapping):
-        return record.get("meta", {}).get("collection-concept-id", "") or ""
-    return ""
 
 
 def validate_inputs(plugin: PluginBase, results: Any) -> None:
@@ -104,9 +77,9 @@ def validate_inputs(plugin: PluginBase, results: Any) -> None:
         return
     if not plugin.needs:
         return
-    record = _first_record(results)
+    record = granules.peek(results)
     for need in plugin.needs:
-        if record is None or not _record_has(record, need):
+        if record is None or not granules.granule_field(record, need):
             raise MissingResultsError(
                 f"{plugin.name} needs {need!r}; these results do not provide it"
             )
@@ -115,25 +88,10 @@ def validate_inputs(plugin: PluginBase, results: Any) -> None:
 def accepting_plugins(results: Any, exclude: Any = ()) -> list[str]:
     """Names of installed plugins whose capabilities are definitely supported."""
 
-    from .context import default_context
-    from .discovery import installed_plugins
-
     excluded = {exclude} if isinstance(exclude, str) else set(exclude)
-    context = default_context()
-    names: list[str] = []
-    for name, plugin_cls in installed_plugins().items():
-        if (
-            name in excluded
-            or getattr(plugin_cls, "contract_version", None) != CONTRACT_VERSION
-        ):
-            continue
-        try:
-            caps = plugin_cls(context).capabilities(results)
-        except Exception:  # noqa: BLE001, S112 - a broken plugin must not mask the real error
-            continue
-        if caps.ok is True:
-            names.append(name)
-    return sorted(names)
+    return sorted(
+        name for name in list_services(results).accepting() if name not in excluded
+    )
 
 
 def warn_once(plugin: str, collection_id: str, reason: str) -> None:
@@ -161,7 +119,7 @@ class PluginBase:
     needs: ClassVar[frozenset[str]] = frozenset()
     requires_results: ClassVar[bool] = True
     auth: ClassVar[Literal["edl", "own", "none"]]
-    output: ClassVar[str]  # 'assets' | 'xarray' | 'dataframe'
+    output: ClassVar[str]  # one of OUTPUTS; 'assets' unless the plugin says otherwise
     Options: ClassVar[type]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -172,6 +130,12 @@ class PluginBase:
             raise TypeError(
                 f"{cls.__name__}.Options defines reserved option name(s): "
                 f"{sorted(clash)}; 'check' is reserved by request()"
+            )
+        unknown = set(cls.needs) - granules.NEEDS
+        if unknown:
+            raise TypeError(
+                f"{cls.__name__}.needs has unknown value(s): {sorted(unknown)}; "
+                f"expected a subset of {sorted(granules.NEEDS)}"
             )
 
     def __init__(self, ctx: PluginContext) -> None:
@@ -191,17 +155,16 @@ class PluginBase:
         return Capabilities(True)
 
     # --- provided by the contract ---
-    def capabilities(self, target: Any = None, *, check: bool = True) -> Capabilities:
+    def capabilities(self, target: Any = None) -> Capabilities:
         """Return the collection's capabilities.
 
-        ``target`` is search results or a collection short name. This is the
-        primary entry point; :meth:`supports` is an alias.
+        ``target`` is search results or a collection short name.
         """
 
-        results = as_target(target)
+        results = _as_target(target)
         if results is None:
             return Capabilities(True, plugin=self.name)
-        key = _collection_label(results)
+        key = granules.collection_label(results)
         if key and key in self._capabilities_cache:
             return self._capabilities_cache[key]
         try:
@@ -215,16 +178,11 @@ class PluginBase:
         caps = replace(
             caps,
             plugin=caps.plugin or self.name,
-            collection=caps.collection or _collection_label(results),
+            collection=caps.collection or key,
         )
         if key:
             self._capabilities_cache[key] = caps
         return caps
-
-    def supports(self, target: Any = None, *, check: bool = True) -> Capabilities:
-        """Alias of :meth:`capabilities`."""
-
-        return self.capabilities(target, check=check)
 
     def job(self, fn: Any, output: str | None = None) -> Job:
         """Run ``fn`` in the shared background pool and return a local :class:`Job`.
@@ -246,15 +204,16 @@ class PluginBase:
         if check and results is not None:
             caps = self.capabilities(results)
             if caps.ok is False:
+                label = granules.collection_label(results)
                 raise UnsupportedCollectionError(
                     self.name,
-                    _collection_label(results),
+                    label,
                     short_name=getattr(results, "short_name", ""),
                     reason=caps.reason,
                     accepting=accepting_plugins(results, exclude=self.name),
                 )
             if caps.ok is None:
-                warn_once(self.name, _collection_label(results), caps.reason)
+                warn_once(self.name, granules.collection_label(results), caps.reason)
         # unknown kwargs raise TypeError here
         return self._request(results, self.Options(**options))
 

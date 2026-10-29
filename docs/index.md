@@ -70,12 +70,12 @@ a `Capability` enum (`subset_bbox`, `reproject`, `lazy_read`, `process`, ...).
 | sliderule | a hardcoded allowlist of dataset short names | none | processors (`apis`) + bbox/temporal subsetting |
 
 ```python
->>> ea.plugins.harmony.supports(results)
+>>> ea.plugins.harmony.capabilities(results)
 Capabilities('harmony supported ATL06', operations=3)
   operations: subset_bbox, subset_temporal, subset_variable
   formats: application/netcdf4
 
->>> ea.plugins.sliderule.capabilities("ATL06")   # by short name, alias of supports
+>>> ea.plugins.sliderule.capabilities("ATL06")   # by short name
 Capabilities('sliderule supported ATL06', operations=3)
   operations: process, subset_bbox, subset_temporal
   apis: atl03sp, atl03x, atl06p, ... gedil4a

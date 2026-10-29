@@ -18,7 +18,7 @@ from typing import Any, ClassVar, Literal
 
 from .errors import JobCanceledError, JobFailedError, JobPausedError, NotSupportedError
 
-__all__ = ["Asset", "Job", "JobStatus"]
+__all__ = ["Asset", "Job", "JobStatus", "TERMINAL_STATUSES"]
 
 
 class JobStatus(Enum):
@@ -31,13 +31,16 @@ class JobStatus(Enum):
     CANCELED = auto()
 
 
-_STOP = {
-    JobStatus.PAUSED,
-    JobStatus.SUCCEEDED,
-    JobStatus.PARTIAL,
-    JobStatus.FAILED,
-    JobStatus.CANCELED,
-}
+TERMINAL_STATUSES = frozenset(
+    {
+        JobStatus.PAUSED,
+        JobStatus.SUCCEEDED,
+        JobStatus.PARTIAL,
+        JobStatus.FAILED,
+        JobStatus.CANCELED,
+    }
+)
+"""States where :meth:`Job.wait` stops polling. Shared with the conformance suite."""
 
 _POOL = ThreadPoolExecutor(max_workers=4)
 _UNSET = object()
@@ -60,10 +63,28 @@ class Job:
     """True means the plugin's ``get_job(job_id)`` can rebuild this job."""
 
     capabilities: ClassVar[frozenset[str]] = frozenset()
-    """Subset of ``{'cancel', 'pause', 'resume'}``; a string means the method exists."""
+    """Subset of ``{'cancel', 'pause', 'resume'}``; a string means the method exists.
+
+    Derived from which hooks a subclass overrides, so it cannot drift. Declare
+    it explicitly only to report a subset of what the job can actually do.
+    """
 
     poll_every: ClassVar[float] = 0.1
     """Seconds between polls; remote jobs raise it to a polite interval."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if "capabilities" in cls.__dict__:
+            return
+        cls.capabilities = frozenset(
+            name
+            for name, hook in (
+                ("cancel", "_cancel"),
+                ("pause", "pause"),
+                ("resume", "resume"),
+            )
+            if getattr(cls, hook) is not getattr(Job, hook)
+        )
 
     def __init__(
         self,
@@ -106,6 +127,14 @@ class Job:
         # job subclass overrides this.
         raise NotImplementedError(f"{self.plugin} jobs cannot be canceled")
 
+    # Symmetric with cancel(): a subclass that overrides pause()/resume() gets
+    # the matching capability derived automatically.
+    def pause(self) -> bool:
+        raise NotSupportedError(f"{self.plugin} jobs cannot be paused")
+
+    def resume(self) -> bool:
+        raise NotSupportedError(f"{self.plugin} jobs cannot be resumed")
+
     # --- provided by the core contract ---
     def status(self) -> JobStatus:
         self._last, self._info = self._poll()
@@ -117,7 +146,7 @@ class Job:
 
     def wait(self, timeout: float | None = None) -> JobStatus:
         deadline = None if timeout is None else time.monotonic() + timeout
-        while self.status() not in _STOP:
+        while self.status() not in TERMINAL_STATUSES:
             if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError(f"{self!r} is still {self._last.name}")
             time.sleep(self.poll_every)

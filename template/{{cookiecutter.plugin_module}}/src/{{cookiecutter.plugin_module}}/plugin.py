@@ -20,9 +20,10 @@ class {{ cookiecutter.plugin_class }}(PluginBase):
         pass
 
     def _supports(self, results: Any) -> Capabilities:
-        # Optional. Report the collection's capabilities. Return
-        # Capabilities(False, reason=...) to reject it early. This is the
-        # default: accept everything, with no extra detail.
+        # Optional. Report the collection's capabilities; callers ask with
+        # plugin.capabilities(results) or plugin.capabilities("SHORT_NAME").
+        # Return Capabilities(False, reason=...) to reject it early. This is
+        # the default: accept everything, with no extra detail.
         return Capabilities(True)
 
     def _request(self, results: Any, options: Options) -> Any:

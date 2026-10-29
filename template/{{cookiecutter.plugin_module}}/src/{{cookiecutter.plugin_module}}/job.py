@@ -9,7 +9,8 @@ from earthaccess_plugin_spec import Job, JobStatus
 
 class {{ cookiecutter.plugin_class }}Job(Job):
     resumable = True
-    capabilities = frozenset()  # add 'cancel'/'pause'/'resume' with matching methods
+    # 'cancel'/'pause'/'resume' are derived from overriding _cancel()/pause()/
+    # resume(); declare capabilities explicitly only to advertise a subset.
     poll_every = 2.0
 
     def __init__(self, job_id: str, client: Any) -> None:

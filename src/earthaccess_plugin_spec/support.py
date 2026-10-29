@@ -9,7 +9,6 @@ from typing import Any
 __all__ = [
     "Capability",
     "Capabilities",
-    "Support",
     "ServiceRow",
     "ServiceTable",
 ]
@@ -54,10 +53,6 @@ class Capabilities:
     formats: frozenset[str] = frozenset()
     apis: frozenset[str] = frozenset()
     reason: str = ""
-
-    @property
-    def supported(self) -> bool | None:
-        return self.ok
 
     def _label(self) -> str:
         return {True: "supported", False: "unsupported", None: "unknown"}[self.ok]
@@ -106,21 +101,17 @@ class Capabilities:
         return "".join(parts)
 
 
-# Backwards-compatible alias: the capability check replaced the old Support.
-Support = Capabilities
-
-
 @dataclass(frozen=True)
 class ServiceRow:
     """One plugin's answer in the ``list_services`` table."""
 
     plugin: str
-    supported: bool | None
+    ok: bool | None
     detail: str = ""
 
     @property
     def _label(self) -> str:
-        return {True: "yes", False: "no", None: "?"}[self.supported]
+        return {True: "yes", False: "no", None: "?"}[self.ok]
 
 
 @dataclass
@@ -136,7 +127,7 @@ class ServiceTable:
         return len(self.rows)
 
     def accepting(self) -> list[str]:
-        return [row.plugin for row in self.rows if row.supported is True]
+        return [row.plugin for row in self.rows if row.ok is True]
 
     def _render(self) -> str:
         header = ("plugin", "supported", "detail")

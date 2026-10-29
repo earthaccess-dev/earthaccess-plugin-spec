@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from earthaccess_plugin_spec import Asset, PluginBase, Support
+from earthaccess_plugin_spec import Asset, Capabilities, PluginBase
 
 
 @dataclass
@@ -58,20 +58,20 @@ class GatedPlugin(PluginBase):
     auth = "none"
     output = "dataframe"
     Options = Options
-    supported = frozenset({"C1"})
+    allowed = frozenset({"C1"})
 
     def __init__(self, ctx: Any) -> None:
         super().__init__(ctx)
         self.checks = 0
 
-    def _supports(self, results: Any) -> Support:
+    def _supports(self, results: Any) -> Capabilities:
         self.checks += 1
         key = getattr(results, "collection_id", "") or getattr(
             results, "short_name", ""
         )
-        if key in self.supported:
-            return Support(True)
-        return Support(False, reason=f"{key} is not supported")
+        if key in self.allowed:
+            return Capabilities(True)
+        return Capabilities(False, reason=f"{key} is not supported")
 
     def _request(self, results: Any, options: Any) -> Any:
         return self.job(lambda: "ok")

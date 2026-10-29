@@ -38,7 +38,7 @@ class MyPlugin(PluginBase):
     needs: ClassVar[frozenset[str]] = frozenset()   # subset of {'concept_id','native_id','umm'}
     requires_results: ClassVar[bool] = True
     auth: ClassVar[Literal["edl", "own", "none"]]
-    output: ClassVar[str]                     # 'assets' | 'xarray' | 'dataframe'
+    output: ClassVar[str]                     # one of OUTPUTS; 'assets' is special
     Options: ClassVar[type]                    # a dataclass, validated by the core
 
     def __init__(self, ctx: PluginContext): ...
@@ -51,8 +51,7 @@ class MyPlugin(PluginBase):
     def get_job(self, job_id) -> Job: ...               # only if resumable
 ```
 
-The core provides `request()`, `arequest()`, `job()`, and `capabilities()` /
-`supports()`:
+The core provides `request()`, `arequest()`, `job()` and `capabilities()`:
 
 ```python
 def request(self, results=None, *, check=True, **options) -> Job:
@@ -85,7 +84,8 @@ repr(job)             # never makes a network call
 Async mirrors: `await job.astatus()`, `await job.await_done()`, `await job.aresults()`,
 `await job.acancel()`.
 
-`wait()` returns on PAUSED or any terminal state and never raises because a job
+`wait()` returns on PAUSED or any terminal state (`TERMINAL_STATUSES`) and never
+raises because a job
 failed (it raises `TimeoutError` on timeout). `results()` then:
 
 - `FAILED` → raises `JobFailedError`
@@ -116,9 +116,9 @@ subclass is needed.
 from earthaccess_plugin_spec import Job, JobStatus
 
 class MyJob(Job):
-    resumable = True                      # plugin.get_job(id) can rebuild it
-    capabilities = frozenset({"cancel"})  # a string means the method exists
-    poll_every = 2.0                      # seconds between polls
+    resumable = True          # plugin.get_job(id) can rebuild it
+    poll_every = 2.0          # seconds between polls
+    # capabilities is derived: override _cancel() and it advertises 'cancel'.
 
     def __init__(self, job_id, client):
         super().__init__(plugin="myplugin", output="assets", id=job_id)
@@ -143,9 +143,10 @@ class MyJob(Job):
 ```
 
 `Job` class attributes: `resumable` (bool), `capabilities` (subset of
-`{'cancel','pause','resume'}`), `poll_every` (seconds). A capability string means
-the method exists on the job. The plugin's `get_job(job_id)` rebuilds the job
-when `resumable = True`.
+`{'cancel','pause','resume'}`), `poll_every` (seconds). `capabilities` is derived
+from which of `_cancel()`, `pause()` and `resume()` the subclass overrides, so it
+cannot drift; declaring it explicitly still wins. The plugin's `get_job(job_id)`
+rebuilds the job when `resumable = True`.
 
 ## Output and `ea.open` / `ea.download`
 
@@ -154,7 +155,7 @@ when `resumable = True`.
 | `output` | `results()` returns | `ea.open(job)` / `ea.download(job, path)` |
 | --- | --- | --- |
 | `assets` | `list[Asset]` (files) | opened / downloaded by earthaccess |
-| `xarray`, `dataframe`, ... | whatever the plugin deems correct | `ea.open` returns it as-is; `download` is not supported |
+| `xarray`, `dataframe`, `opendap`, ... | whatever the plugin deems correct | `ea.open` returns it as-is; `download` is not supported |
 
 An `Asset` is `Asset(href, access, auth="edl", format=None)` where `access` is
 `'https'`, `'s3'` or `'opendap'`. For non-asset outputs, `results()` returns any
@@ -173,9 +174,9 @@ URLs, ... — and earthaccess hands it straight back.
   depends on flaky evidence (CMR associations, capabilities endpoints).
 - `True` → proceed.
 
-Users ask with `plugin.supports(results)` / `plugin.capabilities("ATL06")`, or
-list every installed plugin's answer with `results.list_services()` /
-`ea.list_services(results)`.
+Users ask with `plugin.capabilities(results)` /
+`plugin.capabilities("ATL06")`, or list every installed plugin's answer with
+`results.list_services()` / `ea.list_services(results)`.
 
 ## ResultSet
 
@@ -190,6 +191,12 @@ A raw granule record is a mapping with `meta["concept-id"]`,
 `meta["collection-concept-id"]` and `umm` (the UMM-G). `short_name` and `version`
 come from the search query when known (the granule UMM does not always carry the
 short name).
+
+Do not walk those mappings by hand: `earthaccess_plugin_spec.granules` exposes
+`peek(results)`, `collection_label(results)`, `concept_id(granule)`,
+`native_id(granule)`, `collection_concept_id(granule)`, `short_name(granule)`,
+`version(granule)` and `related_urls(granule)`. They tolerate sparse records and
+never materialize a lazy resultset.
 
 ## Errors
 
@@ -214,6 +221,5 @@ def test_conformance():
 ```
 
 `run_conformance` checks option rejection, `requires_results`, `needs`,
-`supports()`/`capabilities()`, the job contract (id/plugin/output/resumable/
-capabilities), settling, `info()`/`repr()`, `results()` typing, `check=False`,
+`capabilities()`, the job contract (id/plugin/output/resumable/capabilities), settling, `info()`/`repr()`, `results()` typing, `check=False`,
 and the error paths. It fails with a list of every check that did not pass.

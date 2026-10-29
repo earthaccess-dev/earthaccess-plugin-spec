@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from . import granules
 from .support import ServiceRow, ServiceTable
 from .version import CONTRACT_VERSION
 
@@ -63,40 +64,62 @@ class ResultSet(Protocol):
         ...
 
 
-def _collection_reference(granule: Mapping[str, Any]) -> Mapping[str, Any]:
-    return granule.get("umm", {}).get("CollectionReference", {}) or {}
-
-
 class GranuleResultSet(list):
-    """Adapter over the plain ``list[dict]`` returned by ``search_data()``."""
+    """Adapter over the plain ``list[dict]`` returned by ``search_data()``.
+
+    ``short_name``/``version`` default to the value carried by the first
+    granule's UMM reference and can be overridden (by search results that know
+    them, or by test fixtures).
+    """
 
     def __init__(
         self,
-        granules: Sequence[Mapping[str, Any]],
+        records: Sequence[Mapping[str, Any]],
         *,
         services: Sequence[Mapping[str, Any]] | None = None,
+        short_name: str | None = None,
+        version: str | None = None,
     ) -> None:
-        super().__init__(granules)
-        collections = {g["meta"]["collection-concept-id"] for g in self}
+        super().__init__(records)
+        # Ignore blank labels so one sparse record does not look like a second
+        # collection.
+        collections = {
+            label
+            for label in (granules.collection_concept_id(g) for g in self)
+            if label
+        }
         if len(collections) > 1:
             raise ValueError("a ResultSet holds granules from one collection")
         self.collection_id = next(iter(collections), "")
-        self.ids = [g["meta"]["concept-id"] for g in self]
-        self.native_ids = [g["umm"]["GranuleUR"] for g in self]
-        reference = _collection_reference(self[0]) if self else {}
-        self.short_name = reference.get("ShortName", "")
-        self.version = reference.get("Version", "")
+        self.ids = [granules.concept_id(g) for g in self]
+        self.native_ids = [granules.native_id(g) for g in self]
+        first = self[0] if self else None
+        self.short_name = (
+            short_name
+            if short_name is not None
+            else (granules.short_name(first) if first else "")
+        )
+        self.version = (
+            version
+            if version is not None
+            else (granules.version(first) if first else "")
+        )
         self._services = list(services) if services else []
 
     def __getitem__(self, key: Any) -> Any:
         result = super().__getitem__(key)
         if isinstance(key, slice):
             # Slicing must preserve the type, or the extra methods are lost.
-            return GranuleResultSet(result, services=self._services)
+            return GranuleResultSet(
+                result,
+                services=self._services,
+                short_name=self.short_name,
+                version=self.version,
+            )
         return result
 
     def umm(self) -> list[Mapping[str, Any]]:
-        return [g["umm"] for g in self]
+        return [granules.granule_field(g, "umm") or {} for g in self]
 
     def services(self) -> list[Mapping[str, Any]]:
         return list(self._services)
@@ -134,7 +157,7 @@ def list_services(results: Any, context: PluginContext | None = None) -> Service
         if getattr(plugin_cls, "contract_version", None) != CONTRACT_VERSION:
             continue
         try:
-            support = plugin_cls(context).supports(results)
+            support = plugin_cls(context).capabilities(results)
         except Exception as exc:  # noqa: BLE001 - a broken plugin must not break the table
             rows.append(ServiceRow(name, None, f"error: {exc!r}"))
             continue

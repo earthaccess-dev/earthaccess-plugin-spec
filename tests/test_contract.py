@@ -3,13 +3,13 @@ import asyncio
 import pytest
 
 from earthaccess_plugin_spec import (
+    TERMINAL_STATUSES,
     Capabilities,
     Capability,
     MissingResultsError,
     NotSupportedError,
     PluginBase,
     ResultSet,
-    Support,
     UnsupportedCollectionError,
     as_result_set,
     list_services,
@@ -162,8 +162,7 @@ class TestValidation:
 
     def test_missing_need(self):
         plugin = DummyPlugin(fake_context())
-        stub = sample_result_set()
-        stub.ids = []  # type: ignore[attr-defined]
+        stub = sample_result_set(ids=())
         with pytest.raises(MissingResultsError, match="concept_id"):
             plugin.request(stub)
 
@@ -185,8 +184,7 @@ class TestValidation:
             needs = frozenset({"umm"})
             requires_results = True
 
-        stub = sample_result_set()
-        stub._umms = []
+        stub = sample_result_set(umms=[{}])
         with pytest.raises(MissingResultsError, match="umm"):
             validate_inputs(UMMPlugin(), stub)
 
@@ -236,7 +234,7 @@ def test_default_context_uses_lazy_edl_handle():
 
 class TestSupport:
     def test_default_is_supported(self):
-        assert DummyPlugin(fake_context()).supports(sample_result_set()).ok is True
+        assert DummyPlugin(fake_context()).capabilities(sample_result_set()).ok is True
 
     def test_unsupported_raises_before_request(self):
         plugin = GatedPlugin(fake_context())
@@ -255,8 +253,8 @@ class TestSupport:
     def test_supports_is_cached_per_collection(self):
         plugin = GatedPlugin(fake_context())
         results = sample_result_set(collection_id="C1")
-        assert plugin.supports(results).ok is True
-        assert plugin.supports(results).ok is True
+        assert plugin.capabilities(results).ok is True
+        assert plugin.capabilities(results).ok is True
         assert plugin.checks == 1
 
     def test_check_is_reserved(self):
@@ -277,15 +275,10 @@ class TestSupport:
                 def _request(self, results, options):  # noqa: ANN001, ANN201
                     return self.job(lambda: None)
 
-    def test_capabilities_alias_accepts_short_name(self):
+    def test_capabilities_accepts_short_name(self):
         plugin = GatedPlugin(fake_context())
         assert plugin.capabilities("C1").ok is True
         assert plugin.capabilities("C-OTHER").ok is False
-
-    def test_supports_and_capabilities_agree(self):
-        plugin = GatedPlugin(fake_context())
-        results = sample_result_set(collection_id="C1")
-        assert plugin.supports(results).ok == plugin.capabilities(results).ok
 
     def test_capabilities_repr_is_informative(self):
         caps = Capabilities(
@@ -295,7 +288,6 @@ class TestSupport:
             operations=frozenset({Capability.SUBSET_BBOX, Capability.SUBSET_VARIABLE}),
             formats=frozenset({"application/netcdf4"}),
         )
-        assert isinstance(caps, Support)  # Support is the legacy alias
         text = str(caps)
         assert "harmony" in text and "ATL06" in text and "subset_bbox" in text
         assert "harmony" in repr(caps)
@@ -351,7 +343,7 @@ class TestListServices:
         )
         table = list_services(sample_result_set(collection_id="C1"))
         assert [row.plugin for row in table] == ["gated"]
-        assert table.rows[0].supported is True
+        assert table.rows[0].ok is True
 
     def test_result_set_list_services(self, monkeypatch):
         from earthaccess_plugin_spec import discovery
@@ -362,4 +354,172 @@ class TestListServices:
         rs = GranuleResultSet([granule(collection_id="C1")])
         table = rs.list_services()
         assert [row.plugin for row in table] == ["gated"]
-        assert table.rows[0].supported is True
+        assert table.rows[0].ok is True
+
+
+class TestGranules:
+    def test_accessors_read_sparse_records_without_raising(self):
+        from earthaccess_plugin_spec.granules import (
+            collection_concept_id,
+            concept_id,
+            native_id,
+            related_urls,
+            short_name,
+            version,
+        )
+
+        assert concept_id({}) == ""
+        assert native_id({"umm": {}}) == ""
+        assert collection_concept_id({"meta": None}) == ""
+        assert related_urls({"umm": {"RelatedUrls": [{"URL": "u"}]}}) == [{"URL": "u"}]
+        assert related_urls({}) == []
+        assert short_name({}) == "" and version({}) == ""
+
+    def test_accessors_read_values(self):
+        from earthaccess_plugin_spec.granules import (
+            collection_concept_id,
+            concept_id,
+            native_id,
+            short_name,
+            version,
+        )
+
+        record = granule(
+            umm={
+                "GranuleUR": "G1",
+                "CollectionReference": {"ShortName": "ATL06", "Version": "006"},
+            }
+        )
+        assert concept_id(record) == "G1"
+        assert native_id(record) == "G1"
+        assert collection_concept_id(record) == "C1"
+        assert short_name(record) == "ATL06"
+        assert version(record) == "006"
+
+    def test_granule_field_matches_declared_needs(self):
+        from earthaccess_plugin_spec.granules import NEEDS, granule_field
+
+        record = granule()
+        assert granule_field(record, "concept_id") == "G1"
+        assert granule_field(record, "native_id") == "G1.EXAMPLE"
+        assert granule_field(record, "umm") == {"GranuleUR": "G1.EXAMPLE"}
+        assert {"concept_id", "native_id", "umm"} == NEEDS
+        with pytest.raises(KeyError):
+            granule_field(record, "nope")
+
+    def test_peek_and_collection_label_do_not_materialize(self):
+        from earthaccess_plugin_spec import collection_label, peek
+
+        class Lazy:
+            def __init__(self) -> None:
+                self.consumed = 0
+
+            @property
+            def short_name(self) -> str:
+                return ""
+
+            def __iter__(self):
+                for _ in range(10):
+                    self.consumed += 1
+                    yield {"meta": {"collection-concept-id": "C1"}}
+
+        lazy = Lazy()
+        assert peek(lazy) == {"meta": {"collection-concept-id": "C1"}}
+        assert lazy.consumed == 1
+        assert peek(iter(())) is None
+        assert peek(object()) is None
+        assert collection_label(lazy) == "C1"
+
+    def test_collection_label_prefers_short_name(self):
+        from earthaccess_plugin_spec import collection_label
+
+        assert collection_label(sample_result_set(short_name="ATL06")) == "ATL06"
+        assert collection_label(sample_result_set(short_name="")) == "C1234-EXAMPLE"
+
+
+class TestJobCapabilities:
+    def test_base_job_advertises_nothing(self):
+        job = Job(plugin="p", output="dataframe")
+        assert job.capabilities == frozenset()
+        with pytest.raises(NotSupportedError):
+            job.pause()
+        with pytest.raises(NotSupportedError):
+            job.resume()
+
+    def test_capabilities_are_derived_from_overridden_hooks(self):
+        class Cancellable(Job):
+            def _cancel(self):
+                return True
+
+        class Pausable(Job):
+            def pause(self):
+                return True
+
+            def resume(self):
+                return True
+
+        assert Cancellable(plugin="p", output="assets").capabilities == {"cancel"}
+        assert Pausable(plugin="p", output="assets").capabilities == {"pause", "resume"}
+
+    def test_explicit_capabilities_win(self):
+        class NoPause(Job):
+            capabilities = frozenset({"cancel"})
+
+            def pause(self):
+                return True
+
+            def _cancel(self):
+                return True
+
+        assert NoPause(plugin="p", output="assets").capabilities == {"cancel"}
+
+    def test_terminal_statuses_match_wait(self):
+        assert {
+            JobStatus.PAUSED,
+            JobStatus.SUCCEEDED,
+            JobStatus.PARTIAL,
+            JobStatus.FAILED,
+            JobStatus.CANCELED,
+        } == TERMINAL_STATUSES
+
+
+class TestGranuleResultSetOverrides:
+    def test_short_name_and_version_override(self):
+        rs = GranuleResultSet([granule()], short_name="ATL06", version="006")
+        assert rs.short_name == "ATL06"
+        assert rs.version == "006"
+
+    def test_slice_preserves_short_name(self):
+        rs = GranuleResultSet(
+            [granule(concept_id="g1"), granule(concept_id="g2")],
+            short_name="ATL06",
+        )
+        assert rs[:1].short_name == "ATL06"
+
+    def test_sparse_record_does_not_raise(self):
+        rs = GranuleResultSet([{}, {"meta": {"concept-id": "G1"}}])
+        assert rs.collection_id == ""
+        assert rs.ids == ["", "G1"]
+        assert rs.version == ""
+
+    def test_blank_labels_do_not_look_like_two_collections(self):
+        rs = GranuleResultSet([granule(collection_id="C1"), {}])
+        assert rs.collection_id == "C1"
+
+
+class TestVocabulary:
+    def test_outputs_and_auths_are_shared(self):
+        from earthaccess_plugin_spec import AUTHS, OUTPUTS
+
+        assert {"assets", "xarray", "dataframe", "opendap"} == set(OUTPUTS)
+        assert {"edl", "own", "none"} == set(AUTHS)
+
+    def test_unknown_need_is_rejected_at_class_creation(self):
+        with pytest.raises(TypeError, match="unknown value"):
+
+            class BadNeed(PluginBase):
+                name = "bad-need"
+                needs = frozenset({"nope"})
+                auth = "none"
+                output = "dataframe"
+                Options = GatedPlugin.Options

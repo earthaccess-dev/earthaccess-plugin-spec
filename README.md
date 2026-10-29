@@ -50,7 +50,7 @@ class MyPlugin(PluginBase):
     name = "myplugin"
     needs = frozenset({"concept_id"})
     auth = "edl"          # 'edl' | 'own' | 'none'
-    output = "assets"     # 'assets' | 'xarray' | 'dataframe'
+    output = "assets"     # 'assets' opens/downloads; anything else is passed through
 
     @dataclass
     class Options:
@@ -106,14 +106,17 @@ and earthaccess hands it straight back.
 ### The rules
 
 - `needs` is **checked, not fetched**: `search_data()` already returns full UMM.
+- Read granule fields through the `earthaccess_plugin_spec.granules` helpers
+  (`peek`, `collection_label`, `concept_id`, `native_id`, `related_urls`, ...)
+  instead of walking `meta`/`umm` by hand; they never materialize a lazy set.
 - `request()` returns a `Job`; `results()` blocks and returns the output.
 - Import your backend **inside methods**, never at module level.
 - Subclass `Job` **only** for a remote backend.
 - Override `_supports()` (returns a `Capabilities`) to report what a collection
   supports; a definite `False` makes `request()` raise
   `UnsupportedCollectionError`. Users can bypass it with `check=False`, ask with
-  `plugin.supports(results)` / `plugin.capabilities("ATL06")`, or list every
-  plugin's answer with `results.list_services()`.
+  `plugin.capabilities(results)` / `plugin.capabilities("ATL06")`, or list
+  every plugin's answer with `results.list_services()`.
 
 ## Learn more
 
