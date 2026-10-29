@@ -589,7 +589,7 @@ class TestCapabilityRendering:
         text = self._caps().explain()
         assert "subset_variable — select a subset of variables" in text
         assert "options: variables" in text
-        assert "outputs: assets, dataframe, xarray" in text
+        assert "outputs: assets, dataframe, opendap, xarray" in text
         assert 'example: plugin.request(results, variables=["var1", "var2"])' in text
         assert "reproject — reproject the result" in text
 
