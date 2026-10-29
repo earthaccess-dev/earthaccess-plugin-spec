@@ -338,8 +338,8 @@ class Capabilities:
                 for operation in sorted(self.operations, key=str)
             )
             parts.append(
-                "<table><tr><th>operation</th><th>meaning</th>"
-                f"<th>how to ask for it</th></tr>{rows}</table>"
+                "<table><tr><th>operation</th><th>description</th>"
+                f"<th>example</th></tr>{rows}</table>"
             )
         for label, values in (
             ("formats", sorted(self.formats)),

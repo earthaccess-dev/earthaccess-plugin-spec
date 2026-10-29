@@ -621,7 +621,7 @@ class TestCapabilityRendering:
 
     def test_html_is_a_meaning_and_example_table(self):
         html = self._caps()._repr_html_()
-        assert "<th>operation</th><th>meaning</th><th>how to ask for it</th>" in html
+        assert "<th>operation</th><th>description</th><th>example</th>" in html
         assert "select a subset of variables" in html
         assert "plugin.request(results, variables=" in html
         assert "netcdf4" in html
@@ -678,3 +678,24 @@ class TestExplanationDisplay:
         explanation = explain_capability(Capability.REPROJECT)
         assert isinstance(explanation, Explanation)
         assert "<code>crs</code>" in explanation._repr_html_()
+
+
+class TestJobReprState:
+    def test_repr_refreshes_a_local_job(self):
+        import time
+
+        job = Job(lambda: 1, plugin="p", output="dataframe")
+        deadline = time.monotonic() + 5
+        text = repr(job)
+        while "SUCCEEDED" not in text and time.monotonic() < deadline:
+            time.sleep(0.01)
+            text = repr(job)
+        assert "SUCCEEDED" in text
+
+    def test_repr_does_not_poll_a_remote_job(self):
+        class RemoteJob(Job):
+            def _poll(self):
+                raise AssertionError("repr must not poll a remote job")
+
+        job = RemoteJob(plugin="p", output="assets")
+        assert "PENDING" in repr(job)

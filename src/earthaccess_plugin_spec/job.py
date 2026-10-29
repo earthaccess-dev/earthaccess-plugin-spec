@@ -181,6 +181,11 @@ class Job:
         return self._cancel()
 
     def __repr__(self) -> str:
+        # Local work is a future: polling it is free, so show the real state
+        # instead of the PENDING it was born with. Remote jobs are not polled
+        # here (that would be a network call).
+        if self._future is not None:
+            self.status()
         return f"<{type(self).__name__} {self.plugin}:{self.id} {self._last.name}>"
 
     async def astatus(self) -> JobStatus:
