@@ -585,13 +585,39 @@ class TestCapabilityRendering:
         assert "hint: use .explain()" in text
         assert "formats: netcdf4" in text
 
-    def test_explain_lists_options_outputs_and_examples(self):
+    def test_explain_lists_options_return_types_and_examples(self):
         text = self._caps().explain()
         assert "subset_variable — select a subset of variables" in text
         assert "options: variables" in text
-        assert "outputs: assets, dataframe, opendap, xarray" in text
+        assert "assets: list[Asset] (href/access/format)" in text
+        assert "opendap: native backend objects" in text
         assert 'example: plugin.request(results, variables=["var1", "var2"])' in text
         assert "reproject — reproject the result" in text
+
+    def test_explain_prefers_a_plugin_specific_example(self):
+        caps = Capabilities(
+            True,
+            plugin="pydap",
+            collection="MUR-JPL-L4-GLOB-v4.1",
+            operations=frozenset({Capability.LAZY_READ}),
+            examples={
+                Capability.LAZY_READ: (
+                    'pyds = ea.plugins.pydap.request(results, client="pydap").results()[0]'
+                )
+            },
+        )
+        text = caps.explain()
+        assert 'client="pydap"' in text
+        assert "ea.open(job)" not in text
+
+    def test_capabilities_without_a_target_is_an_error(self):
+        with pytest.raises(TypeError, match="needs search results"):
+            DummyPlugin(fake_context()).capabilities()
+
+    def test_output_types_cover_every_output_kind(self):
+        from earthaccess_plugin_spec import OUTPUT_TYPES, OUTPUTS
+
+        assert set(OUTPUT_TYPES) == set(OUTPUTS)
 
     def test_html_is_a_meaning_and_example_table(self):
         html = self._caps()._repr_html_()

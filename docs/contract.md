@@ -202,9 +202,15 @@ it; two plugins advertising `subset_variable` must both accept `variables=[...]`
 and both fail on an unknown name. `apis` remains free-form for backend-specific
 processor names.
 
+`capabilities()` always needs a target — search results or a collection short
+name; calling it without one raises `TypeError`.
+
 `print(capabilities)` shows one summary line per operation, `capabilities.explain()`
-prints the options, output kinds and an example for each, and notebooks render a
-meaning + example table automatically. `explain_capability(Capability.SUBSET_BBOX)`
+prints the options, the Python type each allowed output kind means
+(`OUTPUT_TYPES`) and an example for each, and notebooks render a meaning + example
+table automatically. A plugin can supply a concrete, backend-specific snippet
+through `Capabilities.examples`; it overrides the generic `CapabilitySpec.example`
+(for example PyDAP shows the native-dataset form). `explain_capability(Capability.SUBSET_BBOX)`
 gives the same detail without a plugin instance.
 
 ### Formats

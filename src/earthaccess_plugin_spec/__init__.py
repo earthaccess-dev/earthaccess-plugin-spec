@@ -36,6 +36,7 @@ from .job import FORMATS, TERMINAL_STATUSES, Asset, Format, Job, JobStatus
 from .results import GranuleResultSet, ResultSet, as_result_set, list_services
 from .support import (
     CAPABILITY_SPECS,
+    OUTPUT_TYPES,
     Capabilities,
     Capability,
     CapabilitySpec,
@@ -52,6 +53,7 @@ __all__ = [
     "CONTRACT_VERSION",
     "FORMATS",
     "NEEDS",
+    "OUTPUT_TYPES",
     "OUTPUTS",
     "Asset",
     "AuthHandle",

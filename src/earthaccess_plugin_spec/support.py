@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from html import escape
@@ -15,11 +16,20 @@ __all__ = [
     "Capability",
     "CapabilitySpec",
     "Capabilities",
+    "OUTPUT_TYPES",
     "ServiceRow",
     "ServiceTable",
     "explain_capability",
     "format_name",
 ]
+
+OUTPUT_TYPES: dict[str, str] = {
+    "assets": "list[Asset] (href/access/format)",
+    "xarray": "xarray.Dataset",
+    "dataframe": "pandas.DataFrame or GeoDataFrame",
+    "opendap": "native backend objects (e.g. pydap Dataset, not downloaded)",
+}
+"""What a job's ``output`` kind means as a Python return type."""
 
 _FORMAT_ALIASES = {
     "application/x-netcdf": "netcdf4",
@@ -175,8 +185,8 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
 }
 
 
-def explain_capability(capability: Capability) -> str:
-    """Describe one capability: meaning, canonical option(s) and an example."""
+def explain_capability(capability: Capability, example: str | None = None) -> str:
+    """Describe one capability: meaning, options, return types and an example."""
 
     try:
         spec = CAPABILITY_SPECS[capability]
@@ -189,9 +199,12 @@ def explain_capability(capability: Capability) -> str:
             detail += f" ({' | '.join(sorted(spec.values))})"
         lines.append(f"  options: {detail}")
     if spec.outputs:
-        lines.append("  outputs: " + ", ".join(sorted(spec.outputs)))
-    if spec.example:
-        lines.append(f"  example: {spec.example}")
+        lines.append("  returns:")
+        for kind in sorted(spec.outputs):
+            lines.append(f"    {kind}: {OUTPUT_TYPES.get(kind, 'plugin-defined')}")
+    snippet = example or spec.example
+    if snippet:
+        lines.append(f"  example: {snippet}")
     return "\n".join(lines)
 
 
@@ -211,6 +224,8 @@ class Capabilities:
     formats: frozenset[str] = frozenset()
     apis: frozenset[str] = frozenset()
     reason: str = ""
+    examples: Mapping[Capability, str] = field(default_factory=dict)
+    """Per-plugin usage snippets; they override the generic spec example."""
 
     def _label(self) -> str:
         return {True: "supported", False: "unsupported", None: "unknown"}[self.ok]
@@ -244,7 +259,9 @@ class Capabilities:
         if self.reason:
             sections.append(f"  {self.reason}")
         for operation in sorted(self.operations, key=str):
-            sections.extend(("", explain_capability(operation)))
+            sections.extend(
+                ("", explain_capability(operation, self.examples.get(operation)))
+            )
         for label, values in (
             ("formats", sorted(self.formats)),
             ("apis", sorted(self.apis)),

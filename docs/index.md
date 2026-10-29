@@ -83,7 +83,10 @@ harmony supported ATL06
 
 subset_bbox — restrict the result to a spatial extent (bbox or wkt)
   options: bbox, wkt
-  outputs: assets, dataframe, xarray
+  returns:
+    assets: list[Asset] (href/access/format)
+    dataframe: pandas.DataFrame or GeoDataFrame
+    xarray: xarray.Dataset
   example: plugin.request(results, bbox=(west, south, east, north))
 ...
 

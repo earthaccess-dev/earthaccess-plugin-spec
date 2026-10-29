@@ -158,12 +158,17 @@ class PluginBase:
     def capabilities(self, target: Any = None) -> Capabilities:
         """Return the collection's capabilities.
 
-        ``target`` is search results or a collection short name.
+        ``target`` is search results or a collection short name. Calling it
+        without one is a programming error: a capability check is always about
+        a specific collection.
         """
 
+        if target is None:
+            raise TypeError(
+                f"{self.name}.capabilities() needs search results or a "
+                "collection short name"
+            )
         results = _as_target(target)
-        if results is None:
-            return Capabilities(True, plugin=self.name)
         key = granules.collection_label(results)
         if key and key in self._capabilities_cache:
             return self._capabilities_cache[key]
