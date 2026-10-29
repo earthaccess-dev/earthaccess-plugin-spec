@@ -562,3 +562,57 @@ class TestCapabilitySpecs:
                 assert spec.options, (
                     f"{spec.capability} is behavioural but names no option"
                 )
+
+
+class TestCapabilityRendering:
+    @staticmethod
+    def _caps():
+        return Capabilities(
+            True,
+            plugin="harmony",
+            collection="ATL06",
+            operations=frozenset(
+                {Capability.SUBSET_VARIABLE, Capability.REPROJECT}
+            ),
+            formats=frozenset({"netcdf4"}),
+        )
+
+    def test_str_shows_a_summary_per_operation(self):
+        text = str(self._caps())
+        assert "harmony supported ATL06" in text
+        assert "select a subset of variables" in text
+        assert "reproject the result" in text
+        assert "hint: use .explain()" in text
+        assert "formats: netcdf4" in text
+
+    def test_explain_lists_options_outputs_and_examples(self):
+        text = self._caps().explain()
+        assert "subset_variable — select a subset of variables" in text
+        assert "options: variables" in text
+        assert "outputs: assets, dataframe, xarray" in text
+        assert 'example: plugin.request(results, variables=["var1", "var2"])' in text
+        assert "reproject — reproject the result" in text
+
+    def test_html_is_a_meaning_and_example_table(self):
+        html = self._caps()._repr_html_()
+        assert "<th>operation</th><th>meaning</th><th>how to ask for it</th>" in html
+        assert "select a subset of variables" in html
+        assert "plugin.request(results, variables=" in html
+        assert "netcdf4" in html
+
+    def test_repr_stays_a_single_line(self):
+        text = repr(self._caps())
+        assert "\n" not in text
+        assert "operations=2" in text
+
+    def test_explain_capability_rejects_unknown_values(self):
+        from earthaccess_plugin_spec import explain_capability
+
+        with pytest.raises(KeyError, match="unknown capability"):
+            explain_capability("nope")  # type: ignore[arg-type]
+
+    def test_every_spec_has_an_example(self):
+        from earthaccess_plugin_spec import CAPABILITY_SPECS
+
+        for spec in CAPABILITY_SPECS.values():
+            assert spec.example, f"{spec.capability} needs an example"

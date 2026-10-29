@@ -41,6 +41,7 @@ from .support import (
     CapabilitySpec,
     ServiceRow,
     ServiceTable,
+    explain_capability,
     format_name,
 )
 from .version import CONTRACT_VERSION
@@ -83,6 +84,7 @@ __all__ = [
     "as_result_set",
     "collection_label",
     "default_context",
+    "explain_capability",
     "format_name",
     "list_services",
     "peek",

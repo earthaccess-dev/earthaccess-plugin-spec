@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from html import escape
 from typing import Any
 
 from .job import FORMATS
@@ -16,6 +17,7 @@ __all__ = [
     "Capabilities",
     "ServiceRow",
     "ServiceTable",
+    "explain_capability",
     "format_name",
 ]
 
@@ -88,6 +90,7 @@ class CapabilitySpec:
     values: frozenset[str] = frozenset()
     outputs: frozenset[str] = frozenset()
     case: bool = True
+    example: str = ""
 
 
 CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
@@ -95,42 +98,49 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
         Capability.LAZY_READ,
         "read slices without downloading the whole granule",
         case=False,
+        example='ea.open(job)  # slices are read on access',
     ),
     Capability.SUBSET_BBOX: CapabilitySpec(
         Capability.SUBSET_BBOX,
         "restrict the result to a spatial extent (bbox or wkt)",
         options=("bbox", "wkt"),
         outputs=frozenset({"assets", "xarray", "dataframe"}),
+        example='plugin.request(results, bbox=(west, south, east, north))',
     ),
     Capability.SUBSET_TEMPORAL: CapabilitySpec(
         Capability.SUBSET_TEMPORAL,
         "restrict the result to a time interval (temporal)",
         options=("temporal",),
         outputs=frozenset({"assets", "xarray", "dataframe"}),
+        example='plugin.request(results, temporal={"start": ..., "stop": ...})',
     ),
     Capability.SUBSET_VARIABLE: CapabilitySpec(
         Capability.SUBSET_VARIABLE,
         "select a subset of variables; an unknown name raises",
         options=("variables",),
         outputs=frozenset({"assets", "xarray", "dataframe"}),
+        example='plugin.request(results, variables=["var1", "var2"])',
     ),
     Capability.SUBSET_DIMENSION: CapabilitySpec(
         Capability.SUBSET_DIMENSION,
         "select a subset along named dimensions (dimensions)",
         options=("dimensions",),
         outputs=frozenset({"assets", "xarray"}),
+        example='plugin.request(results, dimensions=[...])',
     ),
     Capability.SUBSET_SHAPE: CapabilitySpec(
         Capability.SUBSET_SHAPE,
         "restrict the result to a shapefile/region geometry (shapefile)",
         options=("shapefile",),
         outputs=frozenset({"assets", "xarray", "dataframe"}),
+        example='plugin.request(results, shapefile="aoi.geojson")',
     ),
     Capability.REPROJECT: CapabilitySpec(
         Capability.REPROJECT,
         "reproject the result to a target CRS (crs)",
         options=("crs",),
         outputs=frozenset({"assets", "xarray"}),
+        example='plugin.request(results, crs="EPSG:3995")',
     ),
     Capability.AVERAGE_TIME: CapabilitySpec(
         Capability.AVERAGE_TIME,
@@ -138,6 +148,7 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
         options=("average",),
         values=frozenset({"time", "time,area"}),
         outputs=frozenset({"assets"}),
+        example='plugin.request(results, average="time")',
     ),
     Capability.AVERAGE_AREA: CapabilitySpec(
         Capability.AVERAGE_AREA,
@@ -145,20 +156,43 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
         options=("average",),
         values=frozenset({"area", "time,area"}),
         outputs=frozenset({"assets"}),
+        example='plugin.request(results, average="area")',
     ),
     Capability.CONCATENATE: CapabilitySpec(
         Capability.CONCATENATE,
         "concatenate the matched granules into one output (concatenate)",
         options=("concatenate",),
         outputs=frozenset({"assets"}),
+        example='plugin.request(results, concatenate=True)',
     ),
     Capability.PROCESS: CapabilitySpec(
         Capability.PROCESS,
         "run an on-demand processor selected by api",
         options=("api",),
         outputs=frozenset({"assets", "dataframe"}),
+        example='plugin.request(results, api="atl06p")',
     ),
 }
+
+
+def explain_capability(capability: Capability) -> str:
+    """Describe one capability: meaning, canonical option(s) and an example."""
+
+    try:
+        spec = CAPABILITY_SPECS[capability]
+    except KeyError:
+        raise KeyError(f"unknown capability {capability!r}") from None
+    lines = [f"{capability} — {spec.summary}"]
+    if spec.options:
+        detail = ", ".join(spec.options)
+        if spec.values:
+            detail += f" ({' | '.join(sorted(spec.values))})"
+        lines.append(f"  options: {detail}")
+    if spec.outputs:
+        lines.append("  outputs: " + ", ".join(sorted(spec.outputs)))
+    if spec.example:
+        lines.append(f"  example: {spec.example}")
+    return "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -191,14 +225,33 @@ class Capabilities:
         if self.reason:
             lines.append(f"  {self.reason}")
         if self.operations:
-            lines.append(
-                "  operations: " + ", ".join(sorted(str(o) for o in self.operations))
-            )
-        if self.apis:
-            lines.append("  apis: " + ", ".join(sorted(self.apis)))
+            width = max(len(str(op)) for op in self.operations)
+            for operation in sorted(self.operations, key=str):
+                spec = CAPABILITY_SPECS[operation]
+                lines.append(f"  {str(operation):<{width}}  {spec.summary}")
         if self.formats:
             lines.append("  formats: " + ", ".join(sorted(self.formats)))
+        if self.apis:
+            lines.append("  apis: " + ", ".join(sorted(self.apis)))
+        if self.operations:
+            lines.append("  hint: use .explain() for options and examples")
         return "\n".join(lines)
+
+    def explain(self) -> str:
+        """A detailed, copy-pasteable explanation of what this plugin can do."""
+
+        sections = [self._title()]
+        if self.reason:
+            sections.append(f"  {self.reason}")
+        for operation in sorted(self.operations, key=str):
+            sections.extend(("", explain_capability(operation)))
+        for label, values in (
+            ("formats", sorted(self.formats)),
+            ("apis", sorted(self.apis)),
+        ):
+            if values:
+                sections.extend(("", f"{label}: " + ", ".join(values)))
+        return "\n".join(sections)
 
     def __repr__(self) -> str:
         return f"Capabilities({self._title()!r}, operations={len(self.operations)})"
@@ -207,21 +260,35 @@ class Capabilities:
         colour = {True: "#2e7d32", False: "#c62828", None: "#ef6c00"}[self.ok]
         icon = {True: "\u2713", False: "\u2717", None: "?"}[self.ok]
         parts = [
-            f"<div><b>{self.plugin or 'plugin'}</b> "
+            f"<div><b>{escape(self.plugin or 'plugin')}</b> "
             f'<span style="color:{colour}">{icon} {self._label()}</span> '
-            f"<code>{self.collection}</code>"
+            f"<code>{escape(self.collection)}</code></div>"
         ]
         if self.reason:
-            parts.append(f"<div><i>{self.reason}</i></div>")
+            parts.append(f"<div><i>{escape(self.reason)}</i></div>")
+        if self.operations:
+            rows = "".join(
+                "<tr>"
+                f"<td><code>{escape(str(operation))}</code></td>"
+                f"<td>{escape(CAPABILITY_SPECS[operation].summary)}</td>"
+                f"<td><code>{escape(CAPABILITY_SPECS[operation].example)}</code></td>"
+                "</tr>"
+                for operation in sorted(self.operations, key=str)
+            )
+            parts.append(
+                "<table><tr><th>operation</th><th>meaning</th>"
+                f"<th>how to ask for it</th></tr>{rows}</table>"
+            )
         for label, values in (
-            ("operations", sorted(str(o) for o in self.operations)),
-            ("apis", sorted(self.apis)),
             ("formats", sorted(self.formats)),
+            ("apis", sorted(self.apis)),
         ):
             if values:
-                items = "".join(f"<li>{value}</li>" for value in values)
-                parts.append(f"<div>{label}:<ul>{items}</ul></div>")
-        parts.append("</div>")
+                parts.append(
+                    f"<div>{label}: "
+                    + ", ".join(f"<code>{escape(value)}</code>" for value in values)
+                    + "</div>"
+                )
         return "".join(parts)
 
 

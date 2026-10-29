@@ -66,19 +66,35 @@ a `Capability` enum (`subset_bbox`, `reproject`, `lazy_read`, `process`, ...).
 | Plugin | Evidence it uses | Network | Reports |
 | --- | --- | --- | --- |
 | harmony | the capabilities endpoint | one cached call | subset/reproject/average/concatenate operations + formats |
-| pydap | OPeNDAP links already in the granule UMM | none | lazy read + dimension/variable subsetting |
+| pydap | OPeNDAP links already in the granule UMM | none | lazy read + variable subsetting |
 | sliderule | a hardcoded allowlist of dataset short names | none | processors (`apis`) + bbox/temporal subsetting |
 
 ```python
 >>> ea.plugins.harmony.capabilities(results)
-Capabilities('harmony supported ATL06', operations=3)
-  operations: subset_bbox, subset_temporal, subset_variable
-  formats: application/netcdf4
+harmony supported ATL06
+  subset_bbox      restrict the result to a spatial extent (bbox or wkt)
+  subset_temporal  restrict the result to a time interval (temporal)
+  subset_variable  select a subset of variables; an unknown name raises
+  formats: netcdf4
+  hint: use .explain() for options and examples
+
+>>> ea.plugins.harmony.capabilities(results).explain()
+harmony supported ATL06
+
+subset_bbox — restrict the result to a spatial extent (bbox or wkt)
+  options: bbox, wkt
+  outputs: assets, dataframe, xarray
+  example: plugin.request(results, bbox=(west, south, east, north))
+...
 
 >>> ea.plugins.sliderule.capabilities("ATL06")   # by short name
-Capabilities('sliderule supported ATL06', operations=3)
-  operations: process, subset_bbox, subset_temporal
+sliderule supported ATL06
+  process          run an on-demand processor selected by api
+  subset_bbox      restrict the result to a spatial extent (bbox or wkt)
+  subset_temporal  restrict the result to a time interval (temporal)
+  formats: geoparquet
   apis: atl03sp, atl03x, atl06p, ... gedil4a
+  hint: use .explain() for options and examples
 
 >>> results.list_services()
 plugin     supported  detail

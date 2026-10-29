@@ -183,24 +183,29 @@ Users ask with `plugin.capabilities(results)` /
 Every `Capability` has a normative `CapabilitySpec` (`CAPABILITY_SPECS`) and an
 advertised operation must be requestable through its canonical `Options` field:
 
-| Operation | Meaning | Canonical option(s) | Result kinds |
-| --- | --- | --- | --- |
-| `lazy_read` | read slices without downloading the granule | — (a read property) | any |
-| `subset_bbox` | restrict to a spatial extent | `bbox` or `wkt` | assets, xarray, dataframe |
-| `subset_temporal` | restrict to a time interval | `temporal` | assets, xarray, dataframe |
-| `subset_variable` | select variables; unknown names raise | `variables` | assets, xarray, dataframe |
-| `subset_dimension` | select along named dimensions | `dimensions` | assets, xarray |
-| `subset_shape` | restrict to a shapefile/region | `shapefile` | assets, xarray, dataframe |
-| `reproject` | reproject to a target CRS | `crs` | assets, xarray |
-| `average_time` | average over time | `average` (`time`, `time,area`) | assets |
-| `average_area` | average over area | `average` (`area`, `time,area`) | assets |
-| `concatenate` | concatenate the matched granules | `concatenate` | assets |
-| `process` | run an on-demand processor | `api` | assets, dataframe |
+| Operation | Meaning | Canonical option(s) | Result kinds | Example |
+| --- | --- | --- | --- | --- |
+| `lazy_read` | read slices without downloading the granule | — (a read property) | any | `ea.open(job)` |
+| `subset_bbox` | restrict to a spatial extent | `bbox` or `wkt` | assets, xarray, dataframe | `request(..., bbox=(w, s, e, n))` |
+| `subset_temporal` | restrict to a time interval | `temporal` | assets, xarray, dataframe | `request(..., temporal={"start": ..., "stop": ...})` |
+| `subset_variable` | select variables; unknown names raise | `variables` | assets, xarray, dataframe | `request(..., variables=["var1"])` |
+| `subset_dimension` | select along named dimensions | `dimensions` | assets, xarray | `request(..., dimensions=[...])` |
+| `subset_shape` | restrict to a shapefile/region | `shapefile` | assets, xarray, dataframe | `request(..., shapefile="aoi.geojson")` |
+| `reproject` | reproject to a target CRS | `crs` | assets, xarray | `request(..., crs="EPSG:3995")` |
+| `average_time` | average over time | `average` (`time`, `time,area`) | assets | `request(..., average="time")` |
+| `average_area` | average over area | `average` (`area`, `time,area`) | assets | `request(..., average="area")` |
+| `concatenate` | concatenate the matched granules | `concatenate` | assets | `request(..., concatenate=True)` |
+| `process` | run an on-demand processor | `api` | assets, dataframe | `request(..., api="atl06p")` |
 
 The summary says what the **result** guarantees, not how the backend implements
 it; two plugins advertising `subset_variable` must both accept `variables=[...]`
 and both fail on an unknown name. `apis` remains free-form for backend-specific
 processor names.
+
+`print(capabilities)` shows one summary line per operation, `capabilities.explain()`
+prints the options, output kinds and an example for each, and notebooks render a
+meaning + example table automatically. `explain_capability(Capability.SUBSET_BBOX)`
+gives the same detail without a plugin instance.
 
 ### Formats
 
