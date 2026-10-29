@@ -26,7 +26,7 @@ Repository = "https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.
 
 # The contract lives on GitHub until it is published to PyPI.
 [tool.uv.sources]
-earthaccess-plugin-spec = { git = "https://github.com/betolink/earthaccess-plugin-spec.git", branch = "main" }
+earthaccess-plugin-spec = { git = "https://github.com/earthaccess-dev/earthaccess-plugin-spec.git", branch = "main" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/{{ cookiecutter.plugin_module }}"]

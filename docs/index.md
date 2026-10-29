@@ -10,7 +10,7 @@ pip install earthaccess-plugin-harmony   # or -pydap, -sliderule
 ```
 
 > **Pre-release:** the packages are not on PyPI yet — see
-> [Installing the current drafts](installing-drafts.md).
+> [Installing and testing the drafts](install.md).
 
 Once installed, a plugin appears under `ea.plugins`:
 
@@ -34,7 +34,7 @@ assets = ea.open(job)             # or ea.download(job, "./data")
 ## The contract in one screen
 
 Plugins are written against two classes from
-[`earthaccess-plugin-spec`](https://github.com/betolink/earthaccess-plugin-spec):
+[`earthaccess-plugin-spec`](https://github.com/earthaccess-dev/earthaccess-plugin-spec):
 
 - **`PluginBase`** — **always** subclass it, declare `Options` (a dataclass) and
   implement `_request()`. Optionally override `_supports()` to report the
@@ -125,11 +125,11 @@ runnable tour with an example per plugin.
 ## Writing your own plugin
 
 ```bash
-cookiecutter gh:betolink/earthaccess-plugin-spec --directory template
+cookiecutter gh:earthaccess-dev/earthaccess-plugin-spec --directory template
 ```
 
 The generated project has a working `PluginBase`, an optional `_supports`, a
-conformance test and CI. See the [spec repository](https://github.com/betolink/earthaccess-plugin-spec)
+conformance test and CI. See the [spec repository](https://github.com/earthaccess-dev/earthaccess-plugin-spec)
 for the full contract and the conformance suite.
 
 > **Status:** the plugin registry (`ea.plugins`, `ea.list_plugins`,

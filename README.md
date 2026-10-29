@@ -1,5 +1,11 @@
 # earthaccess-plugin-spec
 
+> **Plugin preview.** These packages only work with the `plugins` branch of
+> earthaccess
+> ([`earthaccess-dev/earthaccess@plugins`](https://github.com/earthaccess-dev/earthaccess/tree/plugins)),
+> which will be released in **v2.0.0**. See
+> **[Installing and testing the drafts](docs/install.md)**.
+
 The contract that every [`earthaccess`](https://github.com/earthaccess-dev/earthaccess)
 plugin follows, plus a cookiecutter template and a conformance suite.
 
@@ -33,9 +39,8 @@ pip install earthaccess-plugin-spec
 pip install "earthaccess-plugin-spec[edl]"
 ```
 
-> **Not on PyPI yet.** For now install the contract and the plugins from GitHub,
-> together with the `plugin-spec` earthaccess branch — see
-> **[Installing the current drafts](docs/installing-drafts.md)**.
+> **Not on PyPI yet.** For now install the contract and the plugins from GitHub —
+> see **[Installing and testing the drafts](docs/install.md)**.
 
 ## Write a plugin
 
@@ -124,7 +129,7 @@ and earthaccess hands it straight back.
 
 ## Learn more
 
-- **[Installing the current drafts](docs/installing-drafts.md)** — install the
+- **[Installing and testing the drafts](docs/install.md)** — install the
   contract and plugins from GitHub (pre-release).
 - **[The full contract reference](docs/contract.md)** — `PluginBase` fields,
   `Job` hooks, `JobStatus`, capabilities, the lazy `ResultSet`, errors, and the
@@ -155,7 +160,7 @@ def test_conformance():
 Scaffold a new plugin repository:
 
 ```bash
-cookiecutter gh:betolink/earthaccess-plugin-spec --directory template
+cookiecutter gh:earthaccess-dev/earthaccess-plugin-spec --directory template
 ```
 
 You will be asked for the plugin name, backend package, output kind and auth

@@ -1,12 +1,14 @@
-# Installing the current drafts
+# Installing and testing the drafts
 
 > **Pre-release.** `earthaccess-plugin-spec` and the plugins are **not on PyPI
 > yet**. Install them straight from GitHub for now. Once they are published, this
 > page is replaced by plain `pip install earthaccess-plugin-<name>`.
 
 You install four things: the **contract** (`earthaccess-plugin-spec`) and three
-**plugins** (`earthaccess-plugin-harmony`, `-pydap`, `-sliderule`). They are only
-useful together with the plugins-enabled `earthaccess` branch, `plugin-spec`.
+**plugins** (`earthaccess-plugin-harmony`, `-pydap`, `-sliderule`). They only work
+together with the `plugins` branch of
+[`earthaccess`](https://github.com/earthaccess-dev/earthaccess/tree/plugins),
+which will be released in **v2.0.0**.
 
 ## Prerequisites
 
@@ -21,20 +23,20 @@ useful together with the plugins-enabled `earthaccess` branch, `plugin-spec`.
 GitHub automatically.
 
 ```bash
-# 1. the plugins-enabled earthaccess branch
-git clone git@github.com:betolink/earthaccess.git
+# 1. earthaccess on the plugins branch (the v2.0.0 preview)
+git clone git@github.com:earthaccess-dev/earthaccess.git
 cd earthaccess
-git checkout plugin-spec
+git checkout plugins
 
 # 2. environment + earthaccess with all optional deps
 uv venv
 uv pip install -e ".[all]"          # or: -e . plus the deps you need
 
 # 3. the contract and the plugins, from GitHub
-uv pip install "git+https://github.com/betolink/earthaccess-plugin-spec.git"
-uv pip install "git+https://github.com/betolink/earthaccess-plugin-harmony.git"
-uv pip install "git+https://github.com/betolink/earthaccess-plugin-pydap.git"
-uv pip install "git+https://github.com/betolink/earthaccess-plugin-sliderule.git"
+uv pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-spec.git"
+uv pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-harmony.git"
+uv pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-pydap.git"
+uv pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-sliderule.git"
 
 # 4. notebook deps and the NetCDF stack
 uv pip install jupyterlab matplotlib "h5netcdf>=1.7" netCDF4
@@ -53,16 +55,21 @@ jupyter lab docs/tutorials/plugins/
 dependency can't be resolved — it is not on PyPI).
 
 ```bash
+# earthaccess on the plugins branch (the v2.0.0 preview)
+git clone git@github.com:earthaccess-dev/earthaccess.git
+cd earthaccess
+git checkout plugins
+
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
 
 # contract first
-pip install "git+https://github.com/betolink/earthaccess-plugin-spec.git"
+pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-spec.git"
 
-pip install -e ".[all]"             # the plugin-spec earthaccess branch
-pip install "git+https://github.com/betolink/earthaccess-plugin-harmony.git"
-pip install "git+https://github.com/betolink/earthaccess-plugin-pydap.git"
-pip install "git+https://github.com/betolink/earthaccess-plugin-sliderule.git"
+pip install -e ".[all]"             # the plugins earthaccess branch
+pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-harmony.git"
+pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-pydap.git"
+pip install "git+https://github.com/earthaccess-dev/earthaccess-plugin-sliderule.git"
 
 pip install jupyterlab matplotlib "h5netcdf>=1.7" netCDF4
 jupyter lab docs/tutorials/plugins/
@@ -89,8 +96,9 @@ uv pip install xarray geopandas matplotlib jupyterlab "h5netcdf>=1.7" netCDF4
   streaming output).
 - **SlideRule.** Set your organization in the notebook's `configure(...)` cell:
   `ea.plugins.sliderule.configure(url="slideruleearth.io", organization="<your-org>")`.
-- **Private forks.** These URLs assume the public `betolink` repos. A private
-  copy needs a token wired into git auth.
+- **Repositories are moving.** The plugin packages are being migrated to the
+  `earthaccess-dev` org. If one of the `earthaccess-plugin-*` URLs above returns
+  404, use the `betolink/earthaccess-plugin-*` fork until the migration lands.
 - **Don't** run bare `uv run jupyter lab` from the earthaccess checkout — `uv run`
   may re-sync the environment and drop the notebook deps. Activate the venv and
   call `jupyter lab` (or use `uv run --no-sync jupyter lab`).

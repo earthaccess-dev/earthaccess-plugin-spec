@@ -3,7 +3,7 @@
 {{ cookiecutter.description }}
 
 An [`earthaccess`](https://github.com/earthaccess-dev/earthaccess) plugin built
-on [`earthaccess-plugin-spec`](https://github.com/betolink/earthaccess-plugin-spec).
+on [`earthaccess-plugin-spec`](https://github.com/earthaccess-dev/earthaccess-plugin-spec).
 
 ## Install
 
