@@ -33,14 +33,8 @@ so discovery and `list_plugins()` stay cheap.
 
 ## Install
 
-```bash
-pip install earthaccess-plugin-spec
-# or, to use the default Earthdata Login auth handle:
-pip install "earthaccess-plugin-spec[edl]"
-```
-
-> **Not on PyPI yet.** For now install the contract and the plugins from GitHub —
-> see **[Installing and testing the drafts](docs/install.md)**.
+> **Not on PyPI yet.** Install the contract and the plugins from GitHub — see
+> **[Installing and testing the drafts](docs/install.md)**.
 
 ## Write a plugin
 
