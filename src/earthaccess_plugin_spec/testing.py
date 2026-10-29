@@ -294,6 +294,34 @@ def run_conformance(
 
     check("capabilities", capabilities)
 
+
+    # 6. Repro of the job / resumability --------------------------------------
+    def resumable() -> None:
+        assert job is not None
+        if job.resumable:
+            rebuilt = plugin.get_job(job.id)
+            assert isinstance(rebuilt, Job), "get_job() must return a Job"
+            assert rebuilt.id == job.id, "get_job() must preserve the id"
+        else:
+            from .errors import NotSupportedError
+
+            try:
+                plugin.get_job(job.id)
+            except NotSupportedError:
+                return
+            raise AssertionError("non-resumable plugin must raise NotSupportedError")
+
+    check("resumable", resumable)
+
+    # 7. wait() settles and stays settled -------------------------------------
+    def settles() -> None:
+        assert job is not None
+        status = job.wait(timeout=120)
+        assert status in TERMINAL_STATUSES, f"wait() returned non-terminal {status}"
+        assert job.status() is status, "a settled job must stay settled"
+
+    check("settles", settles)
+
     # 5b. Every advertised capability survives a real request (and the backend
     #     saw the translated parameter, when the fixture provides an assertion).
     def capability_behaviour() -> None:
@@ -334,33 +362,6 @@ def run_conformance(
                 assertion(cap_job)
 
     check("capability_behaviour", capability_behaviour)
-
-    # 6. Repro of the job / resumability --------------------------------------
-    def resumable() -> None:
-        assert job is not None
-        if job.resumable:
-            rebuilt = plugin.get_job(job.id)
-            assert isinstance(rebuilt, Job), "get_job() must return a Job"
-            assert rebuilt.id == job.id, "get_job() must preserve the id"
-        else:
-            from .errors import NotSupportedError
-
-            try:
-                plugin.get_job(job.id)
-            except NotSupportedError:
-                return
-            raise AssertionError("non-resumable plugin must raise NotSupportedError")
-
-    check("resumable", resumable)
-
-    # 7. wait() settles and stays settled -------------------------------------
-    def settles() -> None:
-        assert job is not None
-        status = job.wait(timeout=120)
-        assert status in TERMINAL_STATUSES, f"wait() returned non-terminal {status}"
-        assert job.status() is status, "a settled job must stay settled"
-
-    check("settles", settles)
 
     # 8. info() has no request payload; repr() is safe ------------------------
     def info_and_repr() -> None:
