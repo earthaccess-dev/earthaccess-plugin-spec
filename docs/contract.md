@@ -178,6 +178,61 @@ Users ask with `plugin.capabilities(results)` /
 `plugin.capabilities("ATL06")`, or list every installed plugin's answer with
 `results.list_services()` / `ea.list_services(results)`.
 
+### What each operation means
+
+Every `Capability` has a normative `CapabilitySpec` (`CAPABILITY_SPECS`) and an
+advertised operation must be requestable through its canonical `Options` field:
+
+| Operation | Meaning | Canonical option(s) | Result kinds |
+| --- | --- | --- | --- |
+| `lazy_read` | read slices without downloading the granule | — (a read property) | any |
+| `subset_bbox` | restrict to a spatial extent | `bbox` or `wkt` | assets, xarray, dataframe |
+| `subset_temporal` | restrict to a time interval | `temporal` | assets, xarray, dataframe |
+| `subset_variable` | select variables; unknown names raise | `variables` | assets, xarray, dataframe |
+| `subset_dimension` | select along named dimensions | `dimensions` | assets, xarray |
+| `subset_shape` | restrict to a shapefile/region | `shapefile` | assets, xarray, dataframe |
+| `reproject` | reproject to a target CRS | `crs` | assets, xarray |
+| `average_time` | average over time | `average` (`time`, `time,area`) | assets |
+| `average_area` | average over area | `average` (`area`, `time,area`) | assets |
+| `concatenate` | concatenate the matched granules | `concatenate` | assets |
+| `process` | run an on-demand processor | `api` | assets, dataframe |
+
+The summary says what the **result** guarantees, not how the backend implements
+it; two plugins advertising `subset_variable` must both accept `variables=[...]`
+and both fail on an unknown name. `apis` remains free-form for backend-specific
+processor names.
+
+### Formats
+
+`Capabilities.formats` uses the same vocabulary as `Asset.format` — `netcdf4`,
+`zarr`, `geoparquet`, `csv`, `geotiff` (`FORMATS`). Map backend spellings with
+`format_name()`; unknown formats are omitted rather than leaked:
+
+```python
+>>> format_name("application/netcdf4")
+'netcdf4'
+>>> format_name("image/tiff")
+'geotiff'
+>>> format_name("application/octet-stream") is None
+True
+```
+
+### Adding a capability
+
+Only add to the `Capability` enum when all of these hold:
+
+1. the name is lowercase `verb_noun` and there is no synonym in use;
+2. the spec summary states the result guarantee **and** the failure behaviour;
+3. there is a canonical `Options` field a caller can set (otherwise it belongs in
+   `apis`, not `operations`);
+4. at least two backends could plausibly implement it;
+5. it is not a parameterisation of an existing capability.
+
+Then add the enum member, its `CAPABILITY_SPECS` entry, a docs row, and a
+`Fixtures.capability_cases` example. If the capability already exists, map your
+backend vocabulary onto it and do not advertise it unless you can honour the
+canonical option — a narrower implementation should stay out of `operations`.
+
 ## ResultSet
 
 Plugins receive search results (`ea.search_data()` output) or a plain
@@ -217,7 +272,15 @@ class MyFixtures(Fixtures):
 
 
 def test_conformance():
-    run_conformance(MyPlugin, fixtures=MyFixtures(options={"format": "zarr"}))
+    run_conformance(
+        MyPlugin,
+        fixtures=MyFixtures(
+            options={"format": "zarr"},
+            capability_cases={
+                Capability.SUBSET_BBOX: {"bbox": (-110, 40, -109, 41)},
+            },
+        ),
+    )
 ```
 
 `run_conformance` checks option rejection, `requires_results`, `needs`,

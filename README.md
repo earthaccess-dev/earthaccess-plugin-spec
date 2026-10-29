@@ -109,6 +109,10 @@ and earthaccess hands it straight back.
 - Read granule fields through the `earthaccess_plugin_spec.granules` helpers
   (`peek`, `collection_label`, `concept_id`, `native_id`, `related_urls`, ...)
   instead of walking `meta`/`umm` by hand; they never materialize a lazy set.
+- An advertised capability must be **requestable**: `subset_variable` means your
+  `Options` accepts `variables`, and the conformance suite exercises it. Report
+  formats through `format_name()` so they stay in the shared `FORMATS`
+  vocabulary.
 - `request()` returns a `Job`; `results()` blocks and returns the output.
 - Import your backend **inside methods**, never at module level.
 - Subclass `Job` **only** for a remote backend.

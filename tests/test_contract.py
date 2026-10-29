@@ -523,3 +523,42 @@ class TestVocabulary:
                 auth = "none"
                 output = "dataframe"
                 Options = GatedPlugin.Options
+
+
+class TestFormats:
+    def test_format_name_normalises_backend_spellings(self):
+        from earthaccess_plugin_spec import format_name
+
+        assert format_name("application/netcdf4") == "netcdf4"
+        assert format_name("application/x-netcdf4") == "netcdf4"
+        assert format_name("image/tiff") == "geotiff"
+        assert format_name("application/vnd.apache.parquet") == "geoparquet"
+        assert format_name("GEOPARQUET") == "geoparquet"
+        assert format_name("application/octet-stream") is None
+
+    def test_formats_are_the_asset_format_vocabulary(self):
+        from typing import get_args
+
+        from earthaccess_plugin_spec import FORMATS, Format
+
+        assert set(get_args(Format)) == FORMATS
+
+
+class TestCapabilitySpecs:
+    def test_every_capability_has_a_spec(self):
+        from earthaccess_plugin_spec import CAPABILITY_SPECS, Capability
+
+        assert set(CAPABILITY_SPECS) == set(Capability)
+
+    def test_specs_are_bounded_by_the_contract_vocabulary(self):
+        from earthaccess_plugin_spec import CAPABILITY_SPECS, OUTPUTS
+
+        for spec in CAPABILITY_SPECS.values():
+            assert spec.summary, f"{spec.capability} needs a normative summary"
+            assert spec.outputs <= set(OUTPUTS), (
+                f"{spec.capability} uses an unknown output kind"
+            )
+            if spec.case:
+                assert spec.options, (
+                    f"{spec.capability} is behavioural but names no option"
+                )

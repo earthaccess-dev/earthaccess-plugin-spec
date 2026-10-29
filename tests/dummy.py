@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from earthaccess_plugin_spec import Asset, Capabilities, PluginBase
@@ -72,6 +72,45 @@ class GatedPlugin(PluginBase):
         if key in self.allowed:
             return Capabilities(True)
         return Capabilities(False, reason=f"{key} is not supported")
+
+    def _request(self, results: Any, options: Any) -> Any:
+        return self.job(lambda: "ok")
+
+
+@dataclass
+class VariableOptions:
+    variables: list[str] = field(default_factory=list)
+
+
+class VariablePlugin(PluginBase):
+    """Advertises SUBSET_VARIABLE through the canonical ``variables`` option."""
+
+    name = "variable"
+    auth = "none"
+    output = "dataframe"
+    Options = VariableOptions
+
+    def _supports(self, results: Any) -> Capabilities:
+        from earthaccess_plugin_spec import Capability
+
+        return Capabilities(True, operations=frozenset({Capability.SUBSET_VARIABLE}))
+
+    def _request(self, results: Any, options: VariableOptions) -> Any:
+        return self.job(lambda: {"variables": list(options.variables)})
+
+
+class MisclaimedPlugin(PluginBase):
+    """Advertises SUBSET_VARIABLE without a ``variables`` option."""
+
+    name = "misclaimed"
+    auth = "none"
+    output = "dataframe"
+    Options = Options
+
+    def _supports(self, results: Any) -> Capabilities:
+        from earthaccess_plugin_spec import Capability
+
+        return Capabilities(True, operations=frozenset({Capability.SUBSET_VARIABLE}))
 
     def _request(self, results: Any, options: Any) -> Any:
         return self.job(lambda: "ok")

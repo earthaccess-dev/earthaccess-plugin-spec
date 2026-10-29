@@ -32,21 +32,33 @@ from .errors import (
     UnsupportedOutputError,
 )
 from .granules import NEEDS, collection_label, peek
-from .job import TERMINAL_STATUSES, Asset, Job, JobStatus
+from .job import FORMATS, TERMINAL_STATUSES, Asset, Format, Job, JobStatus
 from .results import GranuleResultSet, ResultSet, as_result_set, list_services
-from .support import Capabilities, Capability, ServiceRow, ServiceTable
+from .support import (
+    CAPABILITY_SPECS,
+    Capabilities,
+    Capability,
+    CapabilitySpec,
+    ServiceRow,
+    ServiceTable,
+    format_name,
+)
 from .version import CONTRACT_VERSION
 
 __all__ = [
     "AUTHS",
+    "CAPABILITY_SPECS",
     "CONTRACT_VERSION",
+    "FORMATS",
     "NEEDS",
     "OUTPUTS",
     "Asset",
     "AuthHandle",
     "Capabilities",
     "Capability",
+    "CapabilitySpec",
     "EarthaccessPluginError",
+    "Format",
     "GranuleResultSet",
     "Job",
     "JobCanceledError",
@@ -71,6 +83,7 @@ __all__ = [
     "as_result_set",
     "collection_label",
     "default_context",
+    "format_name",
     "list_services",
     "peek",
     "validate_inputs",

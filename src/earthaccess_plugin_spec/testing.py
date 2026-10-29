@@ -11,7 +11,7 @@ def test_conformance():
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,7 +21,7 @@ from .context import PluginContext
 from .granules import NEEDS
 from .job import TERMINAL_STATUSES, Job, JobStatus
 from .results import GranuleResultSet, ResultSet
-from .support import Capabilities
+from .support import CAPABILITY_SPECS, Capabilities, Capability
 
 __all__ = [
     "FakeAuth",
@@ -115,6 +115,12 @@ class Fixtures:
     failing_options: dict[str, Any] | None = None
     unsupported_result_set: Any = None
     """A result set the plugin must reject, or ``None`` to skip the checks."""
+    capability_cases: dict[Capability, dict[str, Any]] = field(default_factory=dict)
+    """The options that exercise each advertised capability (a real request)."""
+    capability_assertions: dict[Capability, Callable[[Job], None]] = field(
+        default_factory=dict
+    )
+    """Optional checks (usually against the fake backend) after a capability job."""
 
     def context(self) -> PluginContext:
         return fake_context()
@@ -187,6 +193,26 @@ def run_conformance(
         assert "check" not in fields, "'check' is a reserved option name"
 
     check("reserved_options", reserved_options)
+
+    # 2b. An advertised capability is expressible through its canonical option.
+    def capability_contracts() -> None:
+        if fixtures.result_set is None:
+            return
+        caps = plugin.capabilities(fixtures.result_set)
+        fields = set(getattr(plugin_cls.Options, "__dataclass_fields__", {}))
+        for capability in caps.operations:
+            assert isinstance(capability, Capability), (
+                f"operations must hold Capability members, got {capability!r}"
+            )
+            spec = CAPABILITY_SPECS.get(capability)
+            assert spec is not None, f"{capability} has no CapabilitySpec"
+            if spec.options:
+                assert fields & set(spec.options), (
+                    f"advertises {capability} but {plugin_cls.__name__}.Options "
+                    f"has none of {list(spec.options)}"
+                )
+
+    check("capability_contracts", capability_contracts)
 
     # 3. Unknown option names are rejected ------------------------------------
     def unknown_options() -> None:
@@ -267,6 +293,47 @@ def run_conformance(
             )
 
     check("capabilities", capabilities)
+
+    # 5b. Every advertised capability survives a real request (and the backend
+    #     saw the translated parameter, when the fixture provides an assertion).
+    def capability_behaviour() -> None:
+        if fixtures.result_set is None:
+            return
+        caps = plugin.capabilities(fixtures.result_set)
+        if caps.ok is not True:
+            return
+        for capability in sorted(caps.operations, key=str):
+            spec = CAPABILITY_SPECS[capability]
+            if not spec.case:
+                continue
+            case = fixtures.capability_cases.get(capability)
+            assert case is not None, (
+                f"no capability_cases entry for {capability}; a plugin that "
+                "advertises it must exercise it"
+            )
+            cap_job = plugin.request(fixtures.result_set, **case)
+            assert isinstance(cap_job, Job), "a capability case must return a Job"
+            status = cap_job.wait(timeout=120)
+            assert status in (JobStatus.SUCCEEDED, JobStatus.PARTIAL), (
+                f"{capability} case ended {status.name}"
+            )
+            if spec.outputs:
+                assert cap_job.output in spec.outputs, (
+                    f"{capability} produced output={cap_job.output!r}, "
+                    f"expected one of {sorted(spec.outputs)}"
+                )
+            if cap_job.output == "assets":
+                value = cap_job.results()
+                assert isinstance(value, (list, tuple)), (
+                    "assets output must be a sequence"
+                )
+                for asset in value:
+                    assert hasattr(asset, "href"), "assets must expose an href"
+            assertion = fixtures.capability_assertions.get(capability)
+            if assertion is not None:
+                assertion(cap_job)
+
+    check("capability_behaviour", capability_behaviour)
 
     # 6. Repro of the job / resumability --------------------------------------
     def resumable() -> None:

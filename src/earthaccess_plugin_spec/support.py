@@ -6,12 +6,45 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from .job import FORMATS
+
 __all__ = [
+    "CAPABILITY_SPECS",
+    "FORMATS",
     "Capability",
+    "CapabilitySpec",
     "Capabilities",
     "ServiceRow",
     "ServiceTable",
+    "format_name",
 ]
+
+_FORMAT_ALIASES = {
+    "application/x-netcdf": "netcdf4",
+    "application/x-netcdf4": "netcdf4",
+    "application/netcdf": "netcdf4",
+    "application/netcdf4": "netcdf4",
+    "application/x-zarr": "zarr",
+    "application/zip": "zarr",
+    "image/tiff": "geotiff",
+    "image/geotiff": "geotiff",
+    "application/geoparquet": "geoparquet",
+    "application/vnd.apache.parquet": "geoparquet",
+    "text/csv": "csv",
+}
+
+
+def format_name(value: str) -> str | None:
+    """Normalize a backend format string to the canonical :data:`FORMATS`.
+
+    Returns ``None`` for a format the contract does not model, so callers can
+    omit it instead of leaking a backend-specific name.
+    """
+
+    key = value.strip().lower()
+    if key in FORMATS:
+        return key
+    return _FORMAT_ALIASES.get(key)
 
 
 class Capability(str, Enum):
@@ -35,6 +68,97 @@ class Capability(str, Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+@dataclass(frozen=True)
+class CapabilitySpec:
+    """The normative meaning of a :class:`Capability`.
+
+    ``summary`` is what the *result* guarantees (not how the backend does it).
+    ``options`` are the canonical ``Options`` fields through which a caller can
+    ask for the capability; at least one must exist on a plugin that advertises
+    it. ``values`` constrain the requested value (for example
+    ``average="time"``). ``outputs`` are the result kinds where it applies.
+    ``case`` means the conformance suite must exercise it with a real request.
+    """
+
+    capability: Capability
+    summary: str
+    options: tuple[str, ...] = ()
+    values: frozenset[str] = frozenset()
+    outputs: frozenset[str] = frozenset()
+    case: bool = True
+
+
+CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
+    Capability.LAZY_READ: CapabilitySpec(
+        Capability.LAZY_READ,
+        "read slices without downloading the whole granule",
+        case=False,
+    ),
+    Capability.SUBSET_BBOX: CapabilitySpec(
+        Capability.SUBSET_BBOX,
+        "restrict the result to a spatial extent (bbox or wkt)",
+        options=("bbox", "wkt"),
+        outputs=frozenset({"assets", "xarray", "dataframe"}),
+    ),
+    Capability.SUBSET_TEMPORAL: CapabilitySpec(
+        Capability.SUBSET_TEMPORAL,
+        "restrict the result to a time interval (temporal)",
+        options=("temporal",),
+        outputs=frozenset({"assets", "xarray", "dataframe"}),
+    ),
+    Capability.SUBSET_VARIABLE: CapabilitySpec(
+        Capability.SUBSET_VARIABLE,
+        "select a subset of variables; an unknown name raises",
+        options=("variables",),
+        outputs=frozenset({"assets", "xarray", "dataframe"}),
+    ),
+    Capability.SUBSET_DIMENSION: CapabilitySpec(
+        Capability.SUBSET_DIMENSION,
+        "select a subset along named dimensions (dimensions)",
+        options=("dimensions",),
+        outputs=frozenset({"assets", "xarray"}),
+    ),
+    Capability.SUBSET_SHAPE: CapabilitySpec(
+        Capability.SUBSET_SHAPE,
+        "restrict the result to a shapefile/region geometry (shapefile)",
+        options=("shapefile",),
+        outputs=frozenset({"assets", "xarray", "dataframe"}),
+    ),
+    Capability.REPROJECT: CapabilitySpec(
+        Capability.REPROJECT,
+        "reproject the result to a target CRS (crs)",
+        options=("crs",),
+        outputs=frozenset({"assets", "xarray"}),
+    ),
+    Capability.AVERAGE_TIME: CapabilitySpec(
+        Capability.AVERAGE_TIME,
+        "average the result over time (average contains 'time')",
+        options=("average",),
+        values=frozenset({"time", "time,area"}),
+        outputs=frozenset({"assets"}),
+    ),
+    Capability.AVERAGE_AREA: CapabilitySpec(
+        Capability.AVERAGE_AREA,
+        "average the result over area (average contains 'area')",
+        options=("average",),
+        values=frozenset({"area", "time,area"}),
+        outputs=frozenset({"assets"}),
+    ),
+    Capability.CONCATENATE: CapabilitySpec(
+        Capability.CONCATENATE,
+        "concatenate the matched granules into one output (concatenate)",
+        options=("concatenate",),
+        outputs=frozenset({"assets"}),
+    ),
+    Capability.PROCESS: CapabilitySpec(
+        Capability.PROCESS,
+        "run an on-demand processor selected by api",
+        options=("api",),
+        outputs=frozenset({"assets", "dataframe"}),
+    ),
+}
 
 
 @dataclass(frozen=True)

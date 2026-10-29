@@ -14,11 +14,11 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, get_args
 
 from .errors import JobCanceledError, JobFailedError, JobPausedError, NotSupportedError
 
-__all__ = ["Asset", "Job", "JobStatus", "TERMINAL_STATUSES"]
+__all__ = ["FORMATS", "Asset", "Format", "Job", "JobStatus", "TERMINAL_STATUSES"]
 
 
 class JobStatus(Enum):
@@ -45,6 +45,15 @@ TERMINAL_STATUSES = frozenset(
 _POOL = ThreadPoolExecutor(max_workers=4)
 _UNSET = object()
 
+Format = Literal["netcdf4", "zarr", "geoparquet", "csv", "geotiff"]
+
+FORMATS = frozenset(get_args(Format))
+"""The canonical result formats.
+
+``Asset.format`` and ``Capabilities.formats`` both use this vocabulary, so a
+plugin cannot report a format it could never hand back.
+"""
+
 
 @dataclass(frozen=True)
 class Asset:
@@ -53,7 +62,7 @@ class Asset:
     href: str
     access: Literal["https", "s3", "opendap"]
     auth: Literal["edl", "presigned", "none"] = "edl"
-    format: Literal["netcdf4", "zarr", "geoparquet", "csv", "geotiff"] | None = None
+    format: Format | None = None
 
 
 class Job:
