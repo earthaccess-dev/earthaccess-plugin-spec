@@ -642,3 +642,39 @@ class TestCapabilityRendering:
 
         for spec in CAPABILITY_SPECS.values():
             assert spec.example, f"{spec.capability} needs an example"
+
+
+class TestExplanationDisplay:
+    @staticmethod
+    def _explain():
+        caps = Capabilities(
+            True,
+            plugin="pydap",
+            collection="MUR",
+            operations=frozenset({Capability.SUBSET_VARIABLE}),
+        )
+        return caps.explain()
+
+    def test_text_and_str_agree(self):
+        explanation = self._explain()
+        assert str(explanation) == explanation.text
+        assert "options: variables" in explanation
+        assert "native backend objects" in explanation
+
+    def test_repr_is_the_text_not_a_quoted_string(self):
+        text = repr(self._explain())
+        assert not text.startswith("'")
+        assert "subset_variable —" in text
+
+    def test_jupyter_gets_html(self):
+        html = self._explain()._repr_html_()
+        assert "<code>subset_variable</code>" in html
+        assert "list[Asset]" in html
+        assert "plugin.request(results, variables=" in html
+
+    def test_explain_capability_is_also_displayable(self):
+        from earthaccess_plugin_spec import Explanation, explain_capability
+
+        explanation = explain_capability(Capability.REPROJECT)
+        assert isinstance(explanation, Explanation)
+        assert "<code>crs</code>" in explanation._repr_html_()

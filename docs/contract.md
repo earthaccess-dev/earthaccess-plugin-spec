@@ -205,9 +205,11 @@ processor names.
 `capabilities()` always needs a target — search results or a collection short
 name; calling it without one raises `TypeError`.
 
-`print(capabilities)` shows one summary line per operation, `capabilities.explain()`
-prints the options, the Python type each allowed output kind means
-(`OUTPUT_TYPES`) and an example for each, and notebooks render a meaning + example
+`print(capabilities)` shows one summary line per operation. `capabilities.explain()`
+returns an `Explanation`: a formatted string in a terminal and an HTML block in
+Jupyter (Jupyter calls `_repr_html_`; no environment detection). It shows the
+options, the Python type each allowed output kind means (`OUTPUT_TYPES`) and an
+example for each, and evaluating `capabilities` itself renders a meaning + example
 table automatically. A plugin can supply a concrete, backend-specific snippet
 through `Capabilities.examples`; it overrides the generic `CapabilitySpec.example`
 (for example PyDAP shows the native-dataset form). `explain_capability(Capability.SUBSET_BBOX)`

@@ -17,6 +17,7 @@ __all__ = [
     "CapabilitySpec",
     "Capabilities",
     "OUTPUT_TYPES",
+    "Explanation",
     "ServiceRow",
     "ServiceTable",
     "explain_capability",
@@ -185,7 +186,35 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
 }
 
 
-def explain_capability(capability: Capability, example: str | None = None) -> str:
+class Explanation:
+    """A rendered explanation: text in a terminal, HTML in Jupyter.
+
+    Jupyter displays the ``_repr_html_()`` form automatically; everywhere else
+    ``str()``/``repr()`` give the plain layout. No environment detection.
+    """
+
+    __slots__ = ("html", "text")
+
+    def __init__(self, text: str, html: str = "") -> None:
+        self.text = text
+        self.html = html
+
+    def __str__(self) -> str:
+        return self.text
+
+    def __repr__(self) -> str:
+        return self.text
+
+    def __contains__(self, item: str) -> bool:
+        return item in self.text
+
+    def _repr_html_(self) -> str:
+        return self.html or f"<pre>{escape(self.text)}</pre>"
+
+
+def explain_capability(
+    capability: Capability, example: str | None = None
+) -> Explanation:
     """Describe one capability: meaning, options, return types and an example."""
 
     try:
@@ -193,19 +222,31 @@ def explain_capability(capability: Capability, example: str | None = None) -> st
     except KeyError:
         raise KeyError(f"unknown capability {capability!r}") from None
     lines = [f"{capability} — {spec.summary}"]
+    html = [
+        f"<div><h4><code>{escape(str(capability))}</code></h4>"
+        f"<div>{escape(spec.summary)}</div>"
+    ]
     if spec.options:
         detail = ", ".join(spec.options)
         if spec.values:
             detail += f" ({' | '.join(sorted(spec.values))})"
         lines.append(f"  options: {detail}")
+        html.append(f"<div>options: <code>{escape(detail)}</code></div>")
     if spec.outputs:
         lines.append("  returns:")
+        rows = []
         for kind in sorted(spec.outputs):
-            lines.append(f"    {kind}: {OUTPUT_TYPES.get(kind, 'plugin-defined')}")
+            meaning = OUTPUT_TYPES.get(kind, "plugin-defined")
+            lines.append(f"    {kind}: {meaning}")
+            rows.append(
+                f"<li><code>{escape(kind)}</code>: {escape(meaning)}</li>"
+            )
+        html.append("<div>returns:<ul>" + "".join(rows) + "</ul></div>")
     snippet = example or spec.example
     if snippet:
         lines.append(f"  example: {snippet}")
-    return "\n".join(lines)
+        html.append(f"<div>example: <code>{escape(snippet)}</code></div>")
+    return Explanation("\n".join(lines), "".join(html) + "</div>")
 
 
 @dataclass(frozen=True)
@@ -252,23 +293,27 @@ class Capabilities:
             lines.append("  hint: use .explain() for options and examples")
         return "\n".join(lines)
 
-    def explain(self) -> str:
+    def explain(self) -> Explanation:
         """A detailed, copy-pasteable explanation of what this plugin can do."""
 
         sections = [self._title()]
+        html = [f"<div><b>{escape(self._title())}</b></div>"]
         if self.reason:
             sections.append(f"  {self.reason}")
+            html.append(f"<div><i>{escape(self.reason)}</i></div>")
         for operation in sorted(self.operations, key=str):
-            sections.extend(
-                ("", explain_capability(operation, self.examples.get(operation)))
-            )
+            detail = explain_capability(operation, self.examples.get(operation))
+            sections.extend(("", detail.text))
+            html.append(detail.html)
         for label, values in (
             ("formats", sorted(self.formats)),
             ("apis", sorted(self.apis)),
         ):
             if values:
-                sections.extend(("", f"{label}: " + ", ".join(values)))
-        return "\n".join(sections)
+                text = f"{label}: " + ", ".join(values)
+                sections.extend(("", text))
+                html.append(f"<div>{escape(text)}</div>")
+        return Explanation("\n".join(sections), "".join(html))
 
     def __repr__(self) -> str:
         return f"Capabilities({self._title()!r}, operations={len(self.operations)})"
