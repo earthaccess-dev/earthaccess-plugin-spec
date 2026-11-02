@@ -6,6 +6,7 @@ from earthaccess_plugin_spec.testing import Fixtures, run_conformance
 from .dummy import (
     DummyAssetPlugin,
     DummyPlugin,
+    DummyVirtualPlugin,
     MisclaimedPlugin,
     VariablePlugin,
 )
@@ -20,6 +21,10 @@ def test_dummy_plugin_conforms():
 
 def test_dummy_asset_plugin_conforms():
     run_conformance(DummyAssetPlugin, fixtures=Fixtures(options={"count": 2}))
+
+
+def test_dummy_virtual_plugin_conforms():
+    run_conformance(DummyVirtualPlugin, fixtures=Fixtures())
 
 
 class BrokenPlugin(PluginBase):

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "earthaccess-plugin-spec"
-version = "0.2.0"
+version = "0.3.0"
 description = "The contract for earthaccess plugins: PluginBase, Job, and the conformance suite."
 readme = "README.md"
 license = "MIT"

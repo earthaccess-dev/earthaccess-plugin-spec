@@ -3,6 +3,10 @@ import asyncio
 import pytest
 
 from earthaccess_plugin_spec import (
+    CAPABILITY_SPECS,
+    FORMATS,
+    OUTPUT_TYPES,
+    OUTPUTS,
     TERMINAL_STATUSES,
     Capabilities,
     Capability,
@@ -12,6 +16,8 @@ from earthaccess_plugin_spec import (
     ResultSet,
     UnsupportedCollectionError,
     as_result_set,
+    explain_capability,
+    format_name,
     list_services,
     validate_inputs,
 )
@@ -26,7 +32,7 @@ from earthaccess_plugin_spec.results import GranuleResultSet
 from earthaccess_plugin_spec.support import ServiceRow, ServiceTable
 from earthaccess_plugin_spec.testing import fake_context, sample_result_set
 
-from .dummy import DummyAssetPlugin, DummyPlugin, GatedPlugin
+from .dummy import DummyAssetPlugin, DummyPlugin, DummyVirtualPlugin, GatedPlugin
 
 
 def granule(concept_id="G1", collection_id="C1", ur="G1.EXAMPLE", umm=None):
@@ -219,6 +225,92 @@ class TestAssetPlugin:
         assert len(assets) == 3
         assert all(isinstance(a, Asset) for a in assets)
         assert assets[0].access == "https"
+
+
+class TestVdsContract:
+    """The virtual-dataset vocabulary: output kind, store formats, capabilities.
+
+    A persisted virtual dataset is just a URL: an Asset whose ``format`` names
+    the store (``icechunk`` or ``kerchunk`` parquet refs), which is what
+    ``earthaccess.open()`` dispatches on. Backend MIME strings normalize into
+    the same two names through ``format_name()``.
+    """
+
+    def test_virtual_is_a_conventional_output_kind(self):
+        assert "virtual" in OUTPUTS
+        assert "xarray.Dataset" in OUTPUT_TYPES["virtual"]
+
+    def test_store_formats_share_the_format_vocabulary(self):
+        assert {"icechunk", "kerchunk"} <= FORMATS
+
+    def test_asset_can_point_at_a_virtual_store(self):
+        local = Asset(href="mur_sst", access="file", auth="none", format="icechunk")
+        remote = Asset(
+            href="s3://bucket/refs.parquet", access="s3", auth="none", format="kerchunk"
+        )
+        assert (local.access, local.format) == ("file", "icechunk")
+        assert (remote.access, remote.format) == ("s3", "kerchunk")
+        assert local.format in FORMATS and remote.format in FORMATS
+
+    def test_format_name_normalizes_virtual_store_mime_types(self):
+        assert format_name("application/vnd.icechunk") == "icechunk"
+        assert format_name("application/x-icechunk") == "icechunk"
+        assert format_name("application/x-kerchunk") == "kerchunk"
+        assert format_name("application/vnd.kerchunk+parquet") == "kerchunk"
+        assert format_name("application/virtual+kerchunk") == "kerchunk"
+        assert format_name("application/x-not-a-store") is None
+
+    def test_every_capability_has_a_spec(self):
+        assert set(CAPABILITY_SPECS) == set(Capability)
+
+    def test_vds_capabilities_render_for_users(self):
+        caps = Capabilities(
+            True,
+            plugin="vds",
+            operations=frozenset({Capability.VIRTUALIZE, Capability.APPEND}),
+            formats=frozenset({"icechunk"}),
+        )
+        text = str(caps)
+        assert "virtualize" in text and "append" in text
+        assert "icechunk" in text
+        assert "concat_dim" in caps.explain().text
+
+    def test_explain_append_documents_the_store_roundtrip(self):
+        explanation = explain_capability(Capability.APPEND)
+        assert "append_dim" in explanation.text
+        assert "mur_sst" in explanation.text
+
+
+class TestVirtualOutputPlugin:
+    """High-level request flow for a plugin with the ``virtual`` output kind."""
+
+    def test_request_returns_the_virtual_dataset(self):
+        plugin = DummyVirtualPlugin(fake_context())
+        job = plugin.request(sample_result_set(), concat_dim="time")
+        assert job.output == "virtual"
+        assert hasattr(job.results(), "variables")
+
+    def test_request_with_store_returns_one_store_asset(self):
+        plugin = DummyVirtualPlugin(fake_context())
+        job = plugin.request(sample_result_set(), concat_dim="time", store="mur_sst")
+        assert job.output == "assets"
+        asset, *rest = job.results()
+        assert not rest
+        assert asset.href == "mur_sst"
+        assert asset.access == "file"
+        assert asset.format == "icechunk"
+
+    def test_list_services_includes_a_virtualization_plugin(self, monkeypatch):
+        from earthaccess_plugin_spec import discovery
+
+        monkeypatch.setattr(
+            discovery,
+            "installed_plugins",
+            lambda group=None: {"dummy-virtual": DummyVirtualPlugin},
+        )
+        table = list_services(sample_result_set())
+        assert [row.plugin for row in table] == ["dummy-virtual"]
+        assert table.rows[0].ok is True
 
 
 def test_plugin_is_subclass():
@@ -511,7 +603,7 @@ class TestVocabulary:
     def test_outputs_and_auths_are_shared(self):
         from earthaccess_plugin_spec import AUTHS, OUTPUTS
 
-        assert {"assets", "xarray", "dataframe", "opendap"} == set(OUTPUTS)
+        assert {"assets", "xarray", "dataframe", "opendap", "virtual"} == set(OUTPUTS)
         assert {"edl", "own", "none"} == set(AUTHS)
 
     def test_unknown_need_is_rejected_at_class_creation(self):

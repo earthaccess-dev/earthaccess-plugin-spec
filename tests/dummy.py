@@ -52,6 +52,61 @@ class DummyAssetPlugin(PluginBase):
         return self.job(work)
 
 
+@dataclass
+class VirtualOptions:
+    concat_dim: str | None = None
+    store: str | None = None
+
+
+class _FakeVirtualDataset:
+    """Duck-typed stand-in for a ManifestArray-backed ``xarray.Dataset``.
+
+    The contract only requires ``.variables`` (Dataset) or ``.children``
+    (DataTree), so the conformance suite stays dependency-free.
+    """
+
+    variables = {"sst": object()}
+
+
+class DummyVirtualPlugin(PluginBase):
+    """Virtual-dataset output, the way the ``vds`` plugin uses it.
+
+    Without ``store`` the job's result is the virtual dataset itself
+    (``output="virtual"``); with ``store`` the plugin virtualizes *and*
+    persists, returning a one-asset store result (``output="assets"``).
+    """
+
+    name = "dummy-virtual"
+    needs = frozenset({"concept_id"})
+    auth = "none"
+    output = "virtual"
+    Options = VirtualOptions
+
+    def _supports(self, results: Any) -> Capabilities:
+        from earthaccess_plugin_spec import Capability
+
+        return Capabilities(
+            True,
+            operations=frozenset({Capability.VIRTUALIZE, Capability.APPEND}),
+            formats=frozenset({"icechunk", "kerchunk"}),
+        )
+
+    def _request(self, results: Any, options: VirtualOptions) -> Any:
+        if options.store is None:
+            return self.job(lambda: _FakeVirtualDataset())
+        return self.job(
+            lambda: [
+                Asset(
+                    href=options.store,
+                    access="file",
+                    auth="none",
+                    format="icechunk",
+                )
+            ],
+            output="assets",
+        )
+
+
 class GatedPlugin(PluginBase):
     name = "gated"
     needs = frozenset({"concept_id"})

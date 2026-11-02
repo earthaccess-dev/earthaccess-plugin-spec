@@ -28,12 +28,14 @@ __all__ = [
     "validate_inputs",
 ]
 
-OUTPUTS = frozenset({"assets", "xarray", "dataframe", "opendap"})
+OUTPUTS = frozenset({"assets", "xarray", "dataframe", "opendap", "virtual"})
 """The conventional ``output`` kinds.
 
 ``assets`` is the only kind earthaccess itself knows how to open or download.
 The rest are handed back to the caller as-is; ``opendap`` means "native backend
-objects" (for example PyDAP datasets) rather than OPeNDAP URLs.
+objects" (for example PyDAP datasets) rather than OPeNDAP URLs, and ``virtual``
+means a virtual dataset (a ManifestArray-backed ``xarray.Dataset`` or a
+``DataTree``) whose variables reference remote bytes.
 """
 
 AUTHS = frozenset({"edl", "own", "none"})

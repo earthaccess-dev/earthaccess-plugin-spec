@@ -5,7 +5,7 @@
   "distribution_name": "earthaccess-example",
   "description": "An earthaccess plugin for Example",
   "backend_package": "",
-  "output": ["assets", "xarray", "dataframe"],
+  "output": ["assets", "xarray", "dataframe", "virtual"],
   "auth": ["edl", "own", "none"],
   "needs": "concept_id",
   "remote": ["no", "yes"],

@@ -386,6 +386,12 @@ def run_conformance(
             assert isinstance(value, (list, tuple)), "assets output must be a sequence"
             for asset in value:
                 assert hasattr(asset, "href"), "assets must expose an href"
+        if job.output == "virtual":
+            # Duck-typed so the suite stays dependency-free: a Dataset has
+            # .variables, a DataTree has .children.
+            assert hasattr(value, "variables") or hasattr(value, "children"), (
+                "virtual output must be an xarray.Dataset or DataTree"
+            )
 
     check("results_kind", results_kind)
 

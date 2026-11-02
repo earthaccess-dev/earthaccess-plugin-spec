@@ -29,6 +29,7 @@ OUTPUT_TYPES: dict[str, str] = {
     "xarray": "xarray.Dataset",
     "dataframe": "pandas.DataFrame or GeoDataFrame",
     "opendap": "native backend objects (e.g. pydap Dataset, not downloaded)",
+    "virtual": "xarray.Dataset (ManifestArray) or xarray.DataTree",
 }
 """What a job's ``output`` kind means as a Python return type."""
 
@@ -44,6 +45,16 @@ _FORMAT_ALIASES = {
     "application/geoparquet": "geoparquet",
     "application/vnd.apache.parquet": "geoparquet",
     "text/csv": "csv",
+    # Virtual stores: there is no IANA type for either, so accept the vendor
+    # forms seen in the wild and normalize to the canonical names — the same
+    # names `Asset.format` uses, so `earthaccess.open()` can dispatch on them.
+    "application/x-icechunk": "icechunk",
+    "application/vnd.icechunk": "icechunk",
+    "application/x-kerchunk": "kerchunk",
+    "application/vnd.kerchunk": "kerchunk",
+    "application/vnd.kerchunk+parquet": "kerchunk",
+    "application/x-kerchunk-parquet": "kerchunk",
+    "application/virtual+kerchunk": "kerchunk",
 }
 
 
@@ -78,6 +89,8 @@ class Capability(str, Enum):
     AVERAGE_AREA = "average_area"
     CONCATENATE = "concatenate"
     PROCESS = "process"  # run an on-demand processor (SlideRule)
+    VIRTUALIZE = "virtualize"  # build a virtual dataset (no data copied)
+    APPEND = "append"  # append granules to an existing virtual store
 
     def __str__(self) -> str:
         return self.value
@@ -182,6 +195,25 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
         options=("api",),
         outputs=frozenset({"assets", "dataframe"}),
         example='plugin.request(results, api="atl06p")',
+    ),
+    Capability.VIRTUALIZE: CapabilitySpec(
+        Capability.VIRTUALIZE,
+        "build a virtual dataset from granules without copying data",
+        options=("access", "parser", "concat_dim", "combine"),
+        outputs=frozenset({"virtual"}),
+        case=False,  # needs real I/O; exercised by integration tests, not fakes
+        example='vds = ea.plugins.vds.request(results, concat_dim="time").results()',
+    ),
+    Capability.APPEND: CapabilitySpec(
+        Capability.APPEND,
+        "append granules to an existing virtual store along a dimension",
+        options=("store", "append_dim", "format"),
+        outputs=frozenset({"assets"}),
+        case=False,  # needs real I/O; exercised by integration tests, not fakes
+        example=(
+            'ea.plugins.vds.request(results, store="mur_sst", concat_dim="time") '
+            "# store exists -> append"
+        ),
     ),
 }
 

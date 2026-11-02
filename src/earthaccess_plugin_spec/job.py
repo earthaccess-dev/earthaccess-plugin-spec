@@ -45,22 +45,24 @@ TERMINAL_STATUSES = frozenset(
 _POOL = ThreadPoolExecutor(max_workers=4)
 _UNSET = object()
 
-Format = Literal["netcdf4", "zarr", "geoparquet", "csv", "geotiff"]
+Format = Literal["netcdf4", "zarr", "geoparquet", "csv", "geotiff", "icechunk", "kerchunk"]
 
 FORMATS = frozenset(get_args(Format))
 """The canonical result formats.
 
 ``Asset.format`` and ``Capabilities.formats`` both use this vocabulary, so a
-plugin cannot report a format it could never hand back.
+plugin cannot report a format it could never hand back. ``icechunk`` and
+``kerchunk`` name virtual stores: the asset's href points at a store (a local
+directory or an ``s3://`` prefix), not a single downloadable file.
 """
 
 
 @dataclass(frozen=True)
 class Asset:
-    """A result file produced by a job."""
+    """A result file or virtual store produced by a job."""
 
     href: str
-    access: Literal["https", "s3", "opendap"]
+    access: Literal["https", "s3", "opendap", "file"]
     auth: Literal["edl", "presigned", "none"] = "edl"
     format: Format | None = None
 
