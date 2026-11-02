@@ -263,6 +263,14 @@ class TestVdsContract:
     def test_every_capability_has_a_spec(self):
         assert set(CAPABILITY_SPECS) == set(Capability)
 
+    def test_virtualize_can_yield_the_vds_or_its_persisted_asset(self):
+        assert CAPABILITY_SPECS[Capability.VIRTUALIZE].outputs == frozenset(
+            {"virtual", "assets"}
+        )
+
+    def test_append_options_cover_store_to_store_merging(self):
+        assert "source" in CAPABILITY_SPECS[Capability.APPEND].options
+
     def test_vds_capabilities_render_for_users(self):
         caps = Capabilities(
             True,

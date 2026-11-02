@@ -200,14 +200,14 @@ CAPABILITY_SPECS: dict[Capability, CapabilitySpec] = {
         Capability.VIRTUALIZE,
         "build a virtual dataset from granules without copying data",
         options=("access", "parser", "concat_dim", "combine"),
-        outputs=frozenset({"virtual"}),
+        outputs=frozenset({"virtual", "assets"}),
         case=False,  # needs real I/O; exercised by integration tests, not fakes
-        example='vds = ea.plugins.vds.request(results, concat_dim="time").results()',
+        example='ea.plugins.vds.request(results, concat_dim="time").results()',
     ),
     Capability.APPEND: CapabilitySpec(
         Capability.APPEND,
         "append granules to an existing virtual store along a dimension",
-        options=("store", "append_dim", "format"),
+        options=("store", "source", "append_dim", "format"),
         outputs=frozenset({"assets"}),
         case=False,  # needs real I/O; exercised by integration tests, not fakes
         example=(
